@@ -139,23 +139,23 @@ impl Diamond {
             for j in 0..self.size - 1 {
                 if self.at(i, j) > 0 {
                     let tile_id = self.at(i, j) as usize;
-                    if self.tiles[&tile_id].orientation == Orientation::Bottom {
-                        if self.at(i + 1, j) > 0 {
-                            let tile_id_2 = self.at(i + 1, j) as usize;
-                            if self.tiles[&tile_id_2].orientation == Orientation::Top {
-                                self.tiles.remove(&tile_id);
-                                self.tiles.remove(&tile_id_2);
-                                self.clear_square(i, j);
-                            }
+                    if self.tiles[&tile_id].orientation == Orientation::Bottom
+                        && self.at(i + 1, j) > 0
+                    {
+                        let tile_id_2 = self.at(i + 1, j) as usize;
+                        if self.tiles[&tile_id_2].orientation == Orientation::Top {
+                            self.tiles.remove(&tile_id);
+                            self.tiles.remove(&tile_id_2);
+                            self.clear_square(i, j);
                         }
-                    } else if self.tiles[&tile_id].orientation == Orientation::Right {
-                        if self.at(i, j + 1) > 0 {
-                            let tile_id_2 = self.at(i, j + 1) as usize;
-                            if self.tiles[&tile_id_2].orientation == Orientation::Left {
-                                self.tiles.remove(&tile_id);
-                                self.tiles.remove(&tile_id_2);
-                                self.clear_square(i, j);
-                            }
+                    } else if self.tiles[&tile_id].orientation == Orientation::Right
+                        && self.at(i, j + 1) > 0
+                    {
+                        let tile_id_2 = self.at(i, j + 1) as usize;
+                        if self.tiles[&tile_id_2].orientation == Orientation::Left {
+                            self.tiles.remove(&tile_id);
+                            self.tiles.remove(&tile_id_2);
+                            self.clear_square(i, j);
                         }
                     }
                 }
@@ -229,11 +229,8 @@ impl Diamond {
         }
     }
     fn tile(&mut self) {
-        loop {
-            match self.find_square() {
-                Some(c) => self.tile_square(c),
-                None => break,
-            }
+        while let Some(c) = self.find_square() {
+            self.tile_square(c)
         }
     }
     pub fn step(&mut self) {

@@ -1,48 +1,53 @@
-use std::collections::HashMap;
 use rand::Rng;
+use std::collections::HashMap;
 
 #[derive(Copy, Clone, PartialEq)]
 enum Orientation {
     Top = 1,
     Bottom = 2,
     Left = 3,
-    Right = 4
+    Right = 4,
 }
 
 struct Tile {
     coord: (usize, usize),
-    orientation: Orientation
+    orientation: Orientation,
 }
 
 struct Diamond {
     size: usize,
     data: Vec<i64>,
     tiles: HashMap<usize, Tile>,
-    tile_id: usize
-} 
+    tile_id: usize,
+}
 
 impl Diamond {
     pub fn new(a: usize) -> Diamond {
         let size = if a % 2 != 0 {
             a + 1
-        }else{
+        } else {
             if a == 0 {
                 2
-            }else{
+            } else {
                 a
             }
         };
-        Diamond{size: size, data: vec![0; a * a], tiles: HashMap::new(), tile_id: 1}
+        Diamond {
+            size: size,
+            data: vec![0; a * a],
+            tiles: HashMap::new(),
+            tile_id: 1,
+        }
     }
     pub fn at_ref(&mut self, m: usize, n: usize) -> &mut i64 {
-        &mut self.data[m*self.size+n]
+        &mut self.data[m * self.size + n]
     }
     pub fn at(&self, m: usize, n: usize) -> i64 {
-        self.data[m*self.size+n]
+        self.data[m * self.size + n]
     }
     pub fn fill(&mut self) {
-        for i in 0..self.size/2 {
-            for j in 0..self.size/2 {
+        for i in 0..self.size / 2 {
+            for j in 0..self.size / 2 {
                 if i + j < self.size / 2 - 1 {
                     *self.at_ref(i, j) = -1;
                     *self.at_ref(self.size - i - 1, j) = -1;
@@ -54,9 +59,9 @@ impl Diamond {
     }
     pub fn clear_square(&mut self, i: usize, j: usize) {
         *self.at_ref(i, j) = 0;
-        *self.at_ref(i+1, j) = 0;
-        *self.at_ref(i, j+1) = 0;
-        *self.at_ref(i+1, j+1) = 0;
+        *self.at_ref(i + 1, j) = 0;
+        *self.at_ref(i, j + 1) = 0;
+        *self.at_ref(i + 1, j + 1) = 0;
     }
     pub fn extend(&mut self) {
         let new_size = self.size + 2;
@@ -64,7 +69,7 @@ impl Diamond {
         for i in 0..self.size {
             for j in 0..self.size {
                 if self.at(i, j) != -1 {
-                    new_data[(i+1)*new_size + j + 1] = self.at(i, j);
+                    new_data[(i + 1) * new_size + j + 1] = self.at(i, j);
                 }
             }
         }
@@ -72,15 +77,19 @@ impl Diamond {
         self.size = new_size;
         self.fill();
         for (_, tile) in self.tiles.iter_mut() {
-            tile.coord = (tile.coord.0 + 1, tile.coord.1 + 1 );
+            tile.coord = (tile.coord.0 + 1, tile.coord.1 + 1);
         }
     }
     pub fn find_square(&self) -> Option<(usize, usize)> {
         for i in 0..self.size - 1 {
             for j in 0..self.size - 1 {
-                if self.at(i, j) == 0 && self.at(i+1, j) == 0 && self.at(i, j+1) == 0 && self.at(i+1, j+1) == 0 {
+                if self.at(i, j) == 0
+                    && self.at(i + 1, j) == 0
+                    && self.at(i, j + 1) == 0
+                    && self.at(i + 1, j + 1) == 0
+                {
                     return Some((i, j));
-                }    
+                }
             }
         }
         None
@@ -90,21 +99,45 @@ impl Diamond {
         let dir = rng.gen::<u64>() % 2;
         if dir == 0 {
             *self.at_ref(c.0, c.1) = self.tile_id as i64;
-            *self.at_ref(c.0, c.1+1) = self.tile_id as i64;
-            self.tiles.insert(self.tile_id, Tile{coord: c, orientation: Orientation::Top});
+            *self.at_ref(c.0, c.1 + 1) = self.tile_id as i64;
+            self.tiles.insert(
+                self.tile_id,
+                Tile {
+                    coord: c,
+                    orientation: Orientation::Top,
+                },
+            );
             self.tile_id += 1;
-            *self.at_ref(c.0+1, c.1) = self.tile_id as i64;
-            *self.at_ref(c.0+1, c.1+1) = self.tile_id as i64;
-            self.tiles.insert(self.tile_id, Tile{coord: (c.0+1, c.1), orientation: Orientation::Bottom});
-            self.tile_id += 1;   
-        }else{
+            *self.at_ref(c.0 + 1, c.1) = self.tile_id as i64;
+            *self.at_ref(c.0 + 1, c.1 + 1) = self.tile_id as i64;
+            self.tiles.insert(
+                self.tile_id,
+                Tile {
+                    coord: (c.0 + 1, c.1),
+                    orientation: Orientation::Bottom,
+                },
+            );
+            self.tile_id += 1;
+        } else {
             *self.at_ref(c.0, c.1) = self.tile_id as i64;
-            *self.at_ref(c.0+1, c.1) = self.tile_id as i64;
-            self.tiles.insert(self.tile_id, Tile{coord: c, orientation: Orientation::Left});
+            *self.at_ref(c.0 + 1, c.1) = self.tile_id as i64;
+            self.tiles.insert(
+                self.tile_id,
+                Tile {
+                    coord: c,
+                    orientation: Orientation::Left,
+                },
+            );
             self.tile_id += 1;
-            *self.at_ref(c.0, c.1+1) = self.tile_id as i64;
-            *self.at_ref(c.0+1, c.1+1) = self.tile_id as i64;
-            self.tiles.insert(self.tile_id, Tile{coord: (c.0, c.1+1), orientation: Orientation::Right});
+            *self.at_ref(c.0, c.1 + 1) = self.tile_id as i64;
+            *self.at_ref(c.0 + 1, c.1 + 1) = self.tile_id as i64;
+            self.tiles.insert(
+                self.tile_id,
+                Tile {
+                    coord: (c.0, c.1 + 1),
+                    orientation: Orientation::Right,
+                },
+            );
             self.tile_id += 1;
         }
     }
@@ -114,8 +147,8 @@ impl Diamond {
                 if self.at(i, j) > 0 {
                     let tile_id = self.at(i, j) as usize;
                     if self.tiles[&tile_id].orientation == Orientation::Bottom {
-                        if self.at(i+1, j) > 0 {
-                            let tile_id_2 = self.at(i+1, j) as usize;
+                        if self.at(i + 1, j) > 0 {
+                            let tile_id_2 = self.at(i + 1, j) as usize;
                             if self.tiles[&tile_id_2].orientation == Orientation::Top {
                                 self.tiles.remove(&tile_id);
                                 self.tiles.remove(&tile_id_2);
@@ -123,8 +156,8 @@ impl Diamond {
                             }
                         }
                     } else if self.tiles[&tile_id].orientation == Orientation::Right {
-                        if self.at(i, j+1) > 0 {
-                            let tile_id_2 = self.at(i, j+1) as usize;
+                        if self.at(i, j + 1) > 0 {
+                            let tile_id_2 = self.at(i, j + 1) as usize;
                             if self.tiles[&tile_id_2].orientation == Orientation::Left {
                                 self.tiles.remove(&tile_id);
                                 self.tiles.remove(&tile_id_2);
@@ -137,22 +170,22 @@ impl Diamond {
         }
     }
     pub fn move_tiles(&mut self) {
-        let mut to_move : Vec<(usize, (usize, usize), Orientation)> = Vec::new();
+        let mut to_move: Vec<(usize, (usize, usize), Orientation)> = Vec::new();
         for (id, tile) in self.tiles.iter_mut() {
             let c = tile.coord;
             to_move.push((*id, c, tile.orientation));
             match tile.orientation {
                 Orientation::Top => {
-                    tile.coord = (c.0-1, c.1);
-                },
+                    tile.coord = (c.0 - 1, c.1);
+                }
                 Orientation::Bottom => {
-                    tile.coord = (c.0+1, c.1);
-                },
+                    tile.coord = (c.0 + 1, c.1);
+                }
                 Orientation::Left => {
-                    tile.coord = (c.0, c.1-1);
-                },
+                    tile.coord = (c.0, c.1 - 1);
+                }
                 Orientation::Right => {
-                    tile.coord = (c.0, c.1+1);
+                    tile.coord = (c.0, c.1 + 1);
                 }
             }
         }
@@ -160,44 +193,44 @@ impl Diamond {
             let (id, (i, j), o) = m;
             match o {
                 Orientation::Top => {
-                    if self.at(i,j) == id as i64 {
+                    if self.at(i, j) == id as i64 {
                         *self.at_ref(i, j) = 0;
                     }
-                    if self.at(i,j+1) == id as i64 {
-                        *self.at_ref(i, j+1) = 0;
+                    if self.at(i, j + 1) == id as i64 {
+                        *self.at_ref(i, j + 1) = 0;
                     }
-                    *self.at_ref(i-1, j) = id as i64;
-                    *self.at_ref(i-1, j+1) = id as i64;
-                },
+                    *self.at_ref(i - 1, j) = id as i64;
+                    *self.at_ref(i - 1, j + 1) = id as i64;
+                }
                 Orientation::Bottom => {
-                    if self.at(i,j) == id as i64 {
+                    if self.at(i, j) == id as i64 {
                         *self.at_ref(i, j) = 0;
                     }
-                    if self.at(i,j+1) == id as i64 {
-                        *self.at_ref(i, j+1) = 0;
+                    if self.at(i, j + 1) == id as i64 {
+                        *self.at_ref(i, j + 1) = 0;
                     }
-                    *self.at_ref(i+1, j) = id as i64;
-                    *self.at_ref(i+1, j+1) = id as i64;
-                },
+                    *self.at_ref(i + 1, j) = id as i64;
+                    *self.at_ref(i + 1, j + 1) = id as i64;
+                }
                 Orientation::Left => {
-                    if self.at(i,j) == id as i64 {
+                    if self.at(i, j) == id as i64 {
                         *self.at_ref(i, j) = 0;
                     }
-                    if self.at(i+1,j) == id as i64 {
-                        *self.at_ref(i+1, j) = 0;
+                    if self.at(i + 1, j) == id as i64 {
+                        *self.at_ref(i + 1, j) = 0;
                     }
-                    *self.at_ref(i, j-1) = id as i64;
-                    *self.at_ref(i+1, j-1) = id as i64;
-                },
+                    *self.at_ref(i, j - 1) = id as i64;
+                    *self.at_ref(i + 1, j - 1) = id as i64;
+                }
                 Orientation::Right => {
-                    if self.at(i,j) == id as i64 {
+                    if self.at(i, j) == id as i64 {
                         *self.at_ref(i, j) = 0;
                     }
-                    if self.at(i+1,j) == id as i64 {
-                        *self.at_ref(i+1, j) = 0;
+                    if self.at(i + 1, j) == id as i64 {
+                        *self.at_ref(i + 1, j) = 0;
                     }
-                    *self.at_ref(i, j+1) = id as i64;
-                    *self.at_ref(i+1, j+1) = id as i64;
+                    *self.at_ref(i, j + 1) = id as i64;
+                    *self.at_ref(i + 1, j + 1) = id as i64;
                 }
             }
         }
@@ -205,12 +238,8 @@ impl Diamond {
     pub fn tile(&mut self) {
         loop {
             match self.find_square() {
-                Some(c) => {
-                    self.tile_square(c)
-                },
-                None => {
-                    break
-                }
+                Some(c) => self.tile_square(c),
+                None => break,
             }
         }
     }
@@ -218,21 +247,24 @@ impl Diamond {
         for i in 0..self.size {
             for j in 0..self.size {
                 if self.at(i, j) > 0 {
-                    print!(" {} ", match self.tiles[&(self.at(i, j) as usize)].orientation {
-                        Orientation::Top => {
-                            "T"
-                        },
-                        Orientation::Bottom => {
-                            "B"
-                        },
-                        Orientation::Left => {
-                            "L"
-                        },
-                        Orientation::Right => {
-                            "R"
+                    print!(
+                        " {} ",
+                        match self.tiles[&(self.at(i, j) as usize)].orientation {
+                            Orientation::Top => {
+                                "T"
+                            }
+                            Orientation::Bottom => {
+                                "B"
+                            }
+                            Orientation::Left => {
+                                "L"
+                            }
+                            Orientation::Right => {
+                                "R"
+                            }
                         }
-                    });
-                }else{
+                    );
+                } else {
                     print!("   ");
                 }
             }

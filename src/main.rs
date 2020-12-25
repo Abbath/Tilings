@@ -421,22 +421,40 @@ struct Opts {
     left_color: u32,
     #[clap(short, long, default_value = "00ff00ff", parse(try_from_str = parse_hex))]
     right_color: u32,
+    #[clap(short('a'), long)]
+    save_all_steps: bool,
 }
 
 fn main() {
     let opts: Opts = Opts::parse();
     let mut x = Diamond::new();
-    println!("Generating...");
-    x.generate(opts.steps);
-    println!("Rendering...");
-    x.draw_image(
-        &opts.filename,
-        opts.tile_size,
-        &Colors::new(
-            opts.top_color,
-            opts.bottom_color,
-            opts.left_color,
-            opts.right_color,
-        ),
-    );
+    if opts.save_all_steps {
+        for i in 0..opts.steps {
+            x.draw_image(
+                &format!("{}_{}.png", opts.filename, i + 1),
+                opts.tile_size,
+                &Colors::new(
+                    opts.top_color,
+                    opts.bottom_color,
+                    opts.left_color,
+                    opts.right_color,
+                ),
+            );
+            x.step();
+        }
+    } else {
+        println!("Generating...");
+        x.generate(opts.steps - 1);
+        println!("Rendering...");
+        x.draw_image(
+            &opts.filename,
+            opts.tile_size,
+            &Colors::new(
+                opts.top_color,
+                opts.bottom_color,
+                opts.left_color,
+                opts.right_color,
+            ),
+        )
+    }
 }

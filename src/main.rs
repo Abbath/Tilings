@@ -217,6 +217,32 @@ impl Diamond {
     pub fn print(&self) {
         for i in 0..self.size {
             for j in 0..self.size {
+                if self.at(i, j) > 0 {
+                    print!(" {} ", match self.tiles[&(self.at(i, j) as usize)].orientation {
+                        Orientation::Top => {
+                            "T"
+                        },
+                        Orientation::Bottom => {
+                            "B"
+                        },
+                        Orientation::Left => {
+                            "L"
+                        },
+                        Orientation::Right => {
+                            "R"
+                        }
+                    });
+                }else{
+                    print!("   ");
+                }
+            }
+            println!();
+        }
+        println!();
+    }
+    pub fn print_debug(&self) {
+        for i in 0..self.size {
+            for j in 0..self.size {
                 print!("{:4} ", self.at(i, j))
             }
             println!();

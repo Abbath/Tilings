@@ -1,5 +1,8 @@
 use rand::Rng;
+use raqote::*;
 use std::collections::HashMap;
+use std::collections::HashSet;
+use std::collections::VecDeque;
 
 #[derive(Copy, Clone, PartialEq)]
 enum Orientation {
@@ -9,6 +12,7 @@ enum Orientation {
     Right = 4,
 }
 
+#[derive(Copy, Clone)]
 struct Tile {
     coord: (usize, usize),
     orientation: Orientation,
@@ -19,6 +23,8 @@ struct Diamond {
     data: Vec<i64>,
     tiles: HashMap<usize, Tile>,
     tile_id: usize,
+    free_ids: VecDeque<usize>,
+    current_row: usize,
 }
 
 impl Diamond {
@@ -28,6 +34,8 @@ impl Diamond {
             data: vec![0; 4],
             tiles: HashMap::new(),
             tile_id: 1,
+            free_ids: VecDeque::new(),
+            current_row: 0,
         };
         d.tile();
         d
@@ -73,65 +81,77 @@ impl Diamond {
             tile.coord = (tile.coord.0 + 1, tile.coord.1 + 1);
         }
     }
-    fn find_square(&self) -> Option<(usize, usize)> {
-        for i in 0..self.size - 1 {
+    fn find_square(&mut self) -> Option<(usize, usize)> {
+        for i in self.current_row..self.size - 1 {
             for j in 0..self.size - 1 {
                 if self.at(i, j) == 0
                     && self.at(i + 1, j) == 0
                     && self.at(i, j + 1) == 0
                     && self.at(i + 1, j + 1) == 0
                 {
+                    self.current_row = i;
                     return Some((i, j));
                 }
             }
         }
+        self.current_row = 0;
         None
+    }
+    fn next_tile_id(&mut self) -> usize {
+        if !self.free_ids.is_empty() {
+            let tid = self.free_ids.pop_front().unwrap();
+            tid
+        } else {
+            let tid = self.tile_id;
+            self.tile_id += 1;
+            tid
+        }
     }
     fn tile_square(&mut self, c: (usize, usize)) {
         let mut rng = rand::thread_rng();
         let dir = rng.gen::<u64>() % 2;
         if dir == 0 {
-            *self.at_ref(c.0, c.1) = self.tile_id as i64;
-            *self.at_ref(c.0, c.1 + 1) = self.tile_id as i64;
+            let tid = self.next_tile_id();
+            *self.at_ref(c.0, c.1) = tid as i64;
+            *self.at_ref(c.0, c.1 + 1) = tid as i64;
             self.tiles.insert(
-                self.tile_id,
+                tid,
                 Tile {
                     coord: c,
                     orientation: Orientation::Top,
                 },
             );
-            self.tile_id += 1;
-            *self.at_ref(c.0 + 1, c.1) = self.tile_id as i64;
-            *self.at_ref(c.0 + 1, c.1 + 1) = self.tile_id as i64;
+            let tid = self.next_tile_id();
+            *self.at_ref(c.0 + 1, c.1) = tid as i64;
+            *self.at_ref(c.0 + 1, c.1 + 1) = tid as i64;
             self.tiles.insert(
-                self.tile_id,
+                tid,
                 Tile {
                     coord: (c.0 + 1, c.1),
                     orientation: Orientation::Bottom,
                 },
             );
-            self.tile_id += 1;
         } else {
-            *self.at_ref(c.0, c.1) = self.tile_id as i64;
-            *self.at_ref(c.0 + 1, c.1) = self.tile_id as i64;
+            let tid = self.next_tile_id();
+            *self.at_ref(c.0, c.1) = tid as i64;
+            *self.at_ref(c.0 + 1, c.1) = tid as i64;
             self.tiles.insert(
-                self.tile_id,
+                tid,
                 Tile {
                     coord: c,
                     orientation: Orientation::Left,
                 },
             );
-            self.tile_id += 1;
-            *self.at_ref(c.0, c.1 + 1) = self.tile_id as i64;
-            *self.at_ref(c.0 + 1, c.1 + 1) = self.tile_id as i64;
+            let tid = self.next_tile_id();
+            *self.at_ref(c.0, c.1 + 1) = tid as i64;
+            *self.at_ref(c.0 + 1, c.1 + 1) = tid as i64;
             self.tiles.insert(
-                self.tile_id,
+                tid,
                 Tile {
                     coord: (c.0, c.1 + 1),
                     orientation: Orientation::Right,
                 },
             );
-            self.tile_id += 1;
         }
     }
     fn eliminate_stuck_tiles(&mut self) {
@@ -147,6 +167,8 @@ impl Diamond {
                             self.tiles.remove(&tile_id);
                             self.tiles.remove(&tile_id_2);
                             self.clear_square(i, j);
+                            self.free_ids.push_back(tile_id);
+                            self.free_ids.push_back(tile_id_2);
                         }
                     } else if self.tiles[&tile_id].orientation == Orientation::Right
                         && self.at(i, j + 1) > 0
@@ -156,6 +178,8 @@ impl Diamond {
                             self.tiles.remove(&tile_id);
                             self.tiles.remove(&tile_id_2);
                             self.clear_square(i, j);
+                            self.free_ids.push_back(tile_id);
+                            self.free_ids.push_back(tile_id_2);
                         }
                     }
                 }
@@ -282,6 +306,106 @@ impl Diamond {
         }
         println!();
     }
+    pub fn draw(&self, fname: &str, tile_size: usize) {
+        let mut dt = DrawTarget::new(
+            (self.size * tile_size) as i32,
+            (self.size * tile_size) as i32,
+        );
+        let mut drawn: HashSet<i64> = HashSet::new();
+        for i in 0..self.size {
+            for j in 0..self.size {
+                if self.at(i, j) > 0 {
+                    if drawn.contains(&self.at(i, j)) {
+                        continue;
+                    }
+                    let tile = self.tiles[&(self.at(i, j) as usize)];
+                    let (src, w, h) = match tile.orientation {
+                        Orientation::Top => (
+                            Source::Solid(SolidSource {
+                                r: 255,
+                                g: 0,
+                                b: 0,
+                                a: 255,
+                            }),
+                            2,
+                            1,
+                        ),
+                        Orientation::Bottom => (
+                            Source::Solid(SolidSource {
+                                r: 0,
+                                g: 0,
+                                b: 255,
+                                a: 255,
+                            }),
+                            2,
+                            1,
+                        ),
+                        Orientation::Left => (
+                            Source::Solid(SolidSource {
+                                r: 255,
+                                g: 255,
+                                b: 0,
+                                a: 255,
+                            }),
+                            1,
+                            2,
+                        ),
+                        Orientation::Right => (
+                            Source::Solid(SolidSource {
+                                r: 0,
+                                g: 255,
+                                b: 0,
+                                a: 255,
+                            }),
+                            1,
+                            2,
+                        ),
+                    };
+                    let mut pb = PathBuilder::new();
+                    pb.move_to((j * tile_size) as f32, (i * tile_size) as f32);
+                    pb.line_to((j * tile_size) as f32, ((i + h) * tile_size) as f32);
+                    pb.line_to(((j + w) * tile_size) as f32, ((i + h) * tile_size) as f32);
+                    pb.line_to(((j + w) * tile_size) as f32, (i * tile_size) as f32);
+                    let path = pb.finish();
+                    dt.stroke(
+                        &path,
+                        &Source::Solid(SolidSource {
+                            r: 0,
+                            g: 0,
+                            b: 0,
+                            a: 255,
+                        }),
+                        &StrokeStyle::default(),
+                        &DrawOptions::new(),
+                    );
+                    dt.fill_rect(
+                        (j * tile_size) as f32 + 1.0,
+                        (i * tile_size) as f32 + 1.0,
+                        (tile_size * w) as f32 - 2.0,
+                        (tile_size * h) as f32 - 2.0,
+                        &src,
+                        &DrawOptions::new(),
+                    );
+                    drawn.insert(self.at(i, j));
+                } else {
+                    dt.fill_rect(
+                        (i * tile_size) as f32,
+                        (j * tile_size) as f32,
+                        tile_size as f32,
+                        tile_size as f32,
+                        &Source::Solid(SolidSource {
+                            r: 128,
+                            g: 128,
+                            b: 128,
+                            a: 255,
+                        }),
+                        &DrawOptions::new(),
+                    )
+                }
+            }
+        }
+        dt.write_png(fname).expect("FAILED TO SAVE AN IMAGE!");
+    }
 }
 
 fn main() {
@@ -290,6 +414,7 @@ fn main() {
         x.step();
         x.print();
     }
-    x.generate(10);
-    x.print();
+    x.generate(108);
+    // x.print();
+    x.draw("test.png", 16);
 }

@@ -1,6 +1,6 @@
 use clap::Clap;
-use image::{Rgba, RgbaImage};
 use image::imageops::{resize, FilterType};
+use image::{Rgba, RgbaImage};
 use imageproc::drawing::{draw_filled_rect_mut, draw_hollow_rect_mut};
 use imageproc::rect::Rect;
 use rand::Rng;
@@ -331,7 +331,7 @@ impl Diamond {
         ])
     }
     pub fn draw_image(&self, fname: &str, ts: usize, colors: &Colors) {
-        let tile_size = if ts > 16 {ts / 2} else {ts};
+        let tile_size = if ts > 16 { ts / 2 } else { ts };
         let mut im = RgbaImage::new(
             (self.size * tile_size) as u32,
             (self.size * tile_size) as u32,
@@ -376,8 +376,7 @@ impl Diamond {
             }
         }
         if ts > 16 {
-            let (w, h) = (im.width(), im.height());
-            im = resize(&mut im, w*2, h*2, FilterType::Nearest);
+            im = resize(&im, im.width() * 2, im.height() * 2, FilterType::Nearest);
         }
         im.save(fname).expect("FAILED TO SAVE AN IMAGE!");
     }

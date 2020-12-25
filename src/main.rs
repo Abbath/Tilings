@@ -424,13 +424,13 @@ impl Colors {
 #[derive(Clap)]
 #[clap(version = "1.0", author = "Abbath")]
 struct Opts {
-    #[clap(short, long, default_value = "256")]
+    #[clap(short('n'), long, default_value = "256")]
     steps: u64,
     #[clap(short, long, default_value = "test.png")]
     filename: String,
-    #[clap(short, long, default_value = "16", validator(|x| if x.parse::<usize>().unwrap_or(0) > 0 {Ok(())} else {Err("Must be >0")}))]
+    #[clap(short('s'), long, default_value = "16", validator(|x| if x.parse::<usize>().unwrap_or(0) > 0 {Ok(())} else {Err("Must be >0")}))]
     tile_size: usize,
-    #[clap(short('p'), long, default_value = "ff0000ff", parse(try_from_str = parse_hex))]
+    #[clap(short, long, default_value = "ff0000ff", parse(try_from_str = parse_hex))]
     top_color: u32,
     #[clap(short, long, default_value = "0000ffff", parse(try_from_str = parse_hex))]
     bottom_color: u32,

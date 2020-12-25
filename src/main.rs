@@ -1,6 +1,9 @@
 use clap::Clap;
+use image::{Rgba, RgbaImage};
+use image::imageops::{resize, FilterType};
+use imageproc::drawing::{draw_filled_rect_mut, draw_hollow_rect_mut};
+use imageproc::rect::Rect;
 use rand::Rng;
-use raqote::*;
 use rayon::prelude::*;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -319,20 +322,23 @@ impl Diamond {
         }
         println!();
     }
-    fn int_to_solid(&self, c: u32) -> SolidSource {
-        SolidSource {
-            r: (c >> 24 & 0xff) as u8,
-            g: (c >> 16 & 0xff) as u8,
-            b: (c >> 8 & 0xff) as u8,
-            a: (c >> 0 & 0xff) as u8,
-        }
+    fn int_to_color(&self, c: u32) -> Rgba<u8> {
+        Rgba([
+            (c >> 24 & 0xff) as u8,
+            (c >> 16 & 0xff) as u8,
+            (c >> 8 & 0xff) as u8,
+            (c & 0xff) as u8,
+        ])
     }
-    pub fn draw(&self, fname: &str, tile_size: usize, colors: &Colors) {
-        let mut dt = DrawTarget::new(
-            (self.size * tile_size) as i32,
-            (self.size * tile_size) as i32,
+    pub fn draw_image(&self, fname: &str, ts: usize, colors: &Colors) {
+        let tile_size = if ts > 16 {ts / 2} else {ts};
+        let mut im = RgbaImage::new(
+            (self.size * tile_size) as u32,
+            (self.size * tile_size) as u32,
         );
         let mut drawn: HashSet<i64> = HashSet::new();
+        let gray = Rgba([128, 128, 128, 255]);
+        let black = Rgba([0, 0, 0, 255]);
         for i in 0..self.size {
             for j in 0..self.size {
                 if self.at(i, j) > 0 {
@@ -341,61 +347,39 @@ impl Diamond {
                     }
                     let tile = self.tiles[&(self.at(i, j) as usize)];
                     let (src, w, h) = match tile.orientation {
-                        Orientation::Top => (Source::Solid(self.int_to_solid(colors.top)), 2, 1),
-                        Orientation::Bottom => {
-                            (Source::Solid(self.int_to_solid(colors.bottom)), 2, 1)
-                        }
-                        Orientation::Left => (Source::Solid(self.int_to_solid(colors.left)), 1, 2),
-                        Orientation::Right => {
-                            (Source::Solid(self.int_to_solid(colors.right)), 1, 2)
-                        }
+                        Orientation::Top => (self.int_to_color(colors.top), 2, 1),
+                        Orientation::Bottom => (self.int_to_color(colors.bottom), 2, 1),
+                        Orientation::Left => (self.int_to_color(colors.left), 1, 2),
+                        Orientation::Right => (self.int_to_color(colors.right), 1, 2),
                     };
-                    let mut pb = PathBuilder::new();
-                    pb.rect(
-                        (j * tile_size) as f32,
-                        (i * tile_size) as f32,
-                        (w * tile_size) as f32,
-                        (h * tile_size) as f32,
+                    draw_hollow_rect_mut(
+                        &mut im,
+                        Rect::at((j * tile_size) as i32, (i * tile_size) as i32)
+                            .of_size((w * tile_size) as u32, (h * tile_size) as u32),
+                        black,
                     );
-                    let path = pb.finish();
-                    dt.stroke(
-                        &path,
-                        &Source::Solid(SolidSource {
-                            r: 0,
-                            g: 0,
-                            b: 0,
-                            a: 255,
-                        }),
-                        &StrokeStyle::default(),
-                        &DrawOptions::new(),
-                    );
-                    dt.fill_rect(
-                        (j * tile_size) as f32 + 1.0,
-                        (i * tile_size) as f32 + 1.0,
-                        (tile_size * w) as f32 - 2.0,
-                        (tile_size * h) as f32 - 2.0,
-                        &src,
-                        &DrawOptions::new(),
+                    draw_filled_rect_mut(
+                        &mut im,
+                        Rect::at((j * tile_size) as i32 + 1, (i * tile_size) as i32 + 1)
+                            .of_size((w * tile_size) as u32 - 2, (h * tile_size) as u32 - 2),
+                        src,
                     );
                     drawn.insert(self.at(i, j));
                 } else {
-                    dt.fill_rect(
-                        (i * tile_size) as f32,
-                        (j * tile_size) as f32,
-                        tile_size as f32,
-                        tile_size as f32,
-                        &Source::Solid(SolidSource {
-                            r: 128,
-                            g: 128,
-                            b: 128,
-                            a: 255,
-                        }),
-                        &DrawOptions::new(),
-                    )
+                    draw_filled_rect_mut(
+                        &mut im,
+                        Rect::at((j * tile_size) as i32, (i * tile_size) as i32)
+                            .of_size(tile_size as u32, tile_size as u32),
+                        gray,
+                    );
                 }
             }
         }
-        dt.write_png(fname).expect("FAILED TO SAVE AN IMAGE!");
+        if ts > 16 {
+            let (w, h) = (im.width(), im.height());
+            im = resize(&mut im, w*2, h*2, FilterType::Nearest);
+        }
+        im.save(fname).expect("FAILED TO SAVE AN IMAGE!");
     }
 }
 
@@ -446,7 +430,7 @@ fn main() {
     println!("Generating...");
     x.generate(opts.steps);
     println!("Rendering...");
-    x.draw(
+    x.draw_image(
         &opts.filename,
         opts.tile_size,
         &Colors::new(

@@ -322,20 +322,20 @@ impl Diamond {
         }
         println!();
     }
-    fn int_to_color(&self, c: u32) -> Rgba<u8> {
-        Rgba([
-            (c >> 24 & 0xff) as u8,
-            (c >> 16 & 0xff) as u8,
-            (c >> 8 & 0xff) as u8,
-            (c & 0xff) as u8,
-        ])
-    }
     pub fn draw_image(&self, fname: &str, ts: usize, colors: &Colors) {
         let tile_size = if ts > 16 { ts / 2 } else { ts };
         let mut im = RgbaImage::new(
             (self.size * tile_size) as u32,
             (self.size * tile_size) as u32,
         );
+        let int_to_color = |c: u32| {
+            Rgba([
+                (c >> 24 & 0xff) as u8,
+                (c >> 16 & 0xff) as u8,
+                (c >> 8 & 0xff) as u8,
+                (c & 0xff) as u8,
+            ])
+        };
         let mut drawn: HashSet<i64> = HashSet::new();
         let gray = Rgba([128, 128, 128, 255]);
         let black = Rgba([0, 0, 0, 255]);
@@ -347,10 +347,10 @@ impl Diamond {
                     }
                     let tile = self.tiles[&(self.at(i, j) as usize)];
                     let (src, w, h) = match tile.orientation {
-                        Orientation::Top => (self.int_to_color(colors.top), 2, 1),
-                        Orientation::Bottom => (self.int_to_color(colors.bottom), 2, 1),
-                        Orientation::Left => (self.int_to_color(colors.left), 1, 2),
-                        Orientation::Right => (self.int_to_color(colors.right), 1, 2),
+                        Orientation::Top => (int_to_color(colors.top), 2, 1),
+                        Orientation::Bottom => (int_to_color(colors.bottom), 2, 1),
+                        Orientation::Left => (int_to_color(colors.left), 1, 2),
+                        Orientation::Right => (int_to_color(colors.right), 1, 2),
                     };
                     draw_hollow_rect_mut(
                         &mut im,

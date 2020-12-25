@@ -1,8 +1,13 @@
+use clap::Clap;
 use rand::Rng;
 use raqote::*;
+use rayon::prelude::*;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::collections::VecDeque;
+use std::num::ParseIntError;
+
+type Coords = (usize, usize);
 
 #[derive(Copy, Clone, PartialEq)]
 enum Orientation {
@@ -14,7 +19,7 @@ enum Orientation {
 
 #[derive(Copy, Clone)]
 struct Tile {
-    coord: (usize, usize),
+    coord: Coords,
     orientation: Orientation,
 }
 
@@ -24,7 +29,7 @@ struct Diamond {
     tiles: HashMap<usize, Tile>,
     tile_id: usize,
     free_ids: VecDeque<usize>,
-    current_row: usize,
+    current_square: Coords,
 }
 
 impl Diamond {
@@ -35,7 +40,7 @@ impl Diamond {
             tiles: HashMap::new(),
             tile_id: 1,
             free_ids: VecDeque::new(),
-            current_row: 0,
+            current_square: (0, 0),
         };
         d.tile();
         d
@@ -77,37 +82,41 @@ impl Diamond {
         self.data = new_data;
         self.size = new_size;
         self.fill();
-        for (_, tile) in self.tiles.iter_mut() {
+        self.tiles.par_iter_mut().for_each(|(_, tile)| {
             tile.coord = (tile.coord.0 + 1, tile.coord.1 + 1);
-        }
+        });
     }
-    fn find_square(&mut self) -> Option<(usize, usize)> {
-        for i in self.current_row..self.size - 1 {
-            for j in 0..self.size - 1 {
+    fn find_square(&mut self) -> Option<Coords> {
+        for i in self.current_square.0..self.size - 1 {
+            for j in (if i == self.current_square.0 {
+                self.current_square.1
+            } else {
+                0
+            })..self.size - 1
+            {
                 if self.at(i, j) == 0
                     && self.at(i + 1, j) == 0
                     && self.at(i, j + 1) == 0
                     && self.at(i + 1, j + 1) == 0
                 {
-                    self.current_row = i;
+                    self.current_square = (i, j);
                     return Some((i, j));
                 }
             }
         }
-        self.current_row = 0;
+        self.current_square = (0, 0);
         None
     }
     fn next_tile_id(&mut self) -> usize {
         if !self.free_ids.is_empty() {
-            let tid = self.free_ids.pop_front().unwrap();
-            tid
+            self.free_ids.pop_front().unwrap()
         } else {
             let tid = self.tile_id;
             self.tile_id += 1;
             tid
         }
     }
-    fn tile_square(&mut self, c: (usize, usize)) {
+    fn tile_square(&mut self, c: Coords) {
         let mut rng = rand::thread_rng();
         let dir = rng.gen::<u64>() % 2;
         if dir == 0 {
@@ -187,10 +196,12 @@ impl Diamond {
         }
     }
     fn move_tiles(&mut self) {
-        let mut to_move: Vec<(usize, (usize, usize), Orientation)> = Vec::new();
+        let mut to_move: Vec<(usize, Coords, Orientation)> = Vec::new();
         for (id, tile) in self.tiles.iter_mut() {
+            to_move.push((*id, tile.coord, tile.orientation));
+        }
+        self.tiles.par_iter_mut().for_each(|(_, tile)| {
             let c = tile.coord;
-            to_move.push((*id, c, tile.orientation));
             match tile.orientation {
                 Orientation::Top => {
                     tile.coord = (c.0 - 1, c.1);
@@ -205,7 +216,7 @@ impl Diamond {
                     tile.coord = (c.0, c.1 + 1);
                 }
             }
-        }
+        });
         for m in to_move {
             let (id, (i, j), o) = m;
             match o {
@@ -268,6 +279,7 @@ impl Diamond {
             self.step();
         }
     }
+    #[allow(dead_code)]
     pub fn print(&self) {
         for i in 0..self.size {
             for j in 0..self.size {
@@ -297,6 +309,7 @@ impl Diamond {
         }
         println!();
     }
+    #[allow(dead_code)]
     pub fn print_debug(&self) {
         for i in 0..self.size {
             for j in 0..self.size {
@@ -306,7 +319,15 @@ impl Diamond {
         }
         println!();
     }
-    pub fn draw(&self, fname: &str, tile_size: usize) {
+    fn int_to_solid(&self, c: u32) -> SolidSource {
+        SolidSource {
+            r: (c >> 24 & 0xff) as u8,
+            g: (c >> 16 & 0xff) as u8,
+            b: (c >> 8 & 0xff) as u8,
+            a: (c >> 0 & 0xff) as u8,
+        }
+    }
+    pub fn draw(&self, fname: &str, tile_size: usize, colors: &Colors) {
         let mut dt = DrawTarget::new(
             (self.size * tile_size) as i32,
             (self.size * tile_size) as i32,
@@ -320,52 +341,22 @@ impl Diamond {
                     }
                     let tile = self.tiles[&(self.at(i, j) as usize)];
                     let (src, w, h) = match tile.orientation {
-                        Orientation::Top => (
-                            Source::Solid(SolidSource {
-                                r: 255,
-                                g: 0,
-                                b: 0,
-                                a: 255,
-                            }),
-                            2,
-                            1,
-                        ),
-                        Orientation::Bottom => (
-                            Source::Solid(SolidSource {
-                                r: 0,
-                                g: 0,
-                                b: 255,
-                                a: 255,
-                            }),
-                            2,
-                            1,
-                        ),
-                        Orientation::Left => (
-                            Source::Solid(SolidSource {
-                                r: 255,
-                                g: 255,
-                                b: 0,
-                                a: 255,
-                            }),
-                            1,
-                            2,
-                        ),
-                        Orientation::Right => (
-                            Source::Solid(SolidSource {
-                                r: 0,
-                                g: 255,
-                                b: 0,
-                                a: 255,
-                            }),
-                            1,
-                            2,
-                        ),
+                        Orientation::Top => (Source::Solid(self.int_to_solid(colors.top)), 2, 1),
+                        Orientation::Bottom => {
+                            (Source::Solid(self.int_to_solid(colors.bottom)), 2, 1)
+                        }
+                        Orientation::Left => (Source::Solid(self.int_to_solid(colors.left)), 1, 2),
+                        Orientation::Right => {
+                            (Source::Solid(self.int_to_solid(colors.right)), 1, 2)
+                        }
                     };
                     let mut pb = PathBuilder::new();
-                    pb.move_to((j * tile_size) as f32, (i * tile_size) as f32);
-                    pb.line_to((j * tile_size) as f32, ((i + h) * tile_size) as f32);
-                    pb.line_to(((j + w) * tile_size) as f32, ((i + h) * tile_size) as f32);
-                    pb.line_to(((j + w) * tile_size) as f32, (i * tile_size) as f32);
+                    pb.rect(
+                        (j * tile_size) as f32,
+                        (i * tile_size) as f32,
+                        (w * tile_size) as f32,
+                        (h * tile_size) as f32,
+                    );
                     let path = pb.finish();
                     dt.stroke(
                         &path,
@@ -408,13 +399,61 @@ impl Diamond {
     }
 }
 
-fn main() {
-    let mut x = Diamond::new();
-    for _ in 1..20 {
-        x.step();
-        x.print();
+fn parse_hex(input: &str) -> Result<u32, ParseIntError> {
+    u32::from_str_radix(input, 16)
+}
+
+struct Colors {
+    top: u32,
+    bottom: u32,
+    left: u32,
+    right: u32,
+}
+
+impl Colors {
+    pub fn new(t: u32, b: u32, l: u32, r: u32) -> Colors {
+        Colors {
+            top: t,
+            bottom: b,
+            left: l,
+            right: r,
+        }
     }
-    x.generate(108);
-    // x.print();
-    x.draw("test.png", 16);
+}
+
+#[derive(Clap)]
+#[clap(version = "1.0", author = "Abbath")]
+struct Opts {
+    #[clap(short, long, default_value = "256")]
+    steps: u64,
+    #[clap(short, long, default_value = "test.png")]
+    filename: String,
+    #[clap(short, long, default_value = "16", validator(|x| if x.parse::<usize>().unwrap_or(0) > 0 {Ok(())} else {Err("Must be >0")}))]
+    tile_size: usize,
+    #[clap(short('p'), long, default_value = "ff0000ff", parse(try_from_str = parse_hex))]
+    top_color: u32,
+    #[clap(short, long, default_value = "0000ffff", parse(try_from_str = parse_hex))]
+    bottom_color: u32,
+    #[clap(short, long, default_value = "ffff00ff", parse(try_from_str = parse_hex))]
+    left_color: u32,
+    #[clap(short, long, default_value = "00ff00ff", parse(try_from_str = parse_hex))]
+    right_color: u32,
+}
+
+fn main() {
+    let opts: Opts = Opts::parse();
+    let mut x = Diamond::new();
+    println!("Generating...");
+    x.generate(opts.steps);
+    println!("Rendering...");
+    x.draw(
+        &opts.filename,
+        opts.tile_size,
+        &Colors::new(
+            opts.top_color,
+            opts.bottom_color,
+            opts.left_color,
+            opts.right_color,
+        ),
+    );
 }

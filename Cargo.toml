@@ -1,5 +1,5 @@
 [package]
-name = "test2"
+name = "tilings"
 version = "0.1.0"
 authors = ["Abbath <pitongogi@gmail.com>"]
 edition = "2018"
@@ -9,3 +9,5 @@ edition = "2018"
 [dependencies]
 rand = "*"
 raqote = "*"
+rayon = "*"
+clap = "3.0.0-beta.2"

@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::collections::VecDeque;
 use std::num::ParseIntError;
+use std::ops::Range;
 
 type Coords = (usize, usize);
 
@@ -60,22 +61,23 @@ impl Diamond {
         *self.at_ref(i, j + 1) = 0;
         *self.at_ref(i + 1, j + 1) = 0;
     }
-    fn span(&self, i: usize) -> (usize, usize) {
+    fn span(&self, i: usize) -> Range<usize> {
         if i < self.size / 2 {
-            (self.size / 2 - 1 - i, self.size - self.size / 2 + 1 + i)
+            Range{start: self.size / 2 - 1 - i, end: self.size - self.size / 2 + 1 + i}
         } else {
-            (
+            Range{
+                start:
                 self.size / 2 - 1 - (self.size - i - 1),
+                end: 
                 self.size - self.size / 2 + 1 + (self.size - i - 1),
-            )
+            }
         }
     }
     fn extend(&mut self) {
         let new_size = self.size + 2;
         let mut new_data = vec![0; new_size * new_size];
         for i in 0..self.size {
-            let (b, e) = self.span(i);
-            for j in b..e {
+            for j in self.span(i) {
                 new_data[(i + 1) * new_size + j + 1] = self.at(i, j);
             }
         }
@@ -87,7 +89,7 @@ impl Diamond {
     }
     fn find_square(&mut self) -> Option<Coords> {
         for i in self.current_square.0..self.size - 1 {
-            let (b, e) = self.span(i);
+            let Range{start: b, end: e} = self.span(i);
             for j in (if i == self.current_square.0 {
                 self.current_square.1
             } else {
@@ -104,7 +106,7 @@ impl Diamond {
                 }
             }
         }
-        let (b, _) = self.span(0);
+        let  Range{start: b, end: _} = self.span(0);
         self.current_square = (0, b);
         None
     }
@@ -166,7 +168,7 @@ impl Diamond {
     }
     fn eliminate_stuck_tiles(&mut self) {
         for i in 0..self.size - 1 {
-            let (b, e) = self.span(i);
+            let Range{start: b, end: e} = self.span(i);
             for j in b..e - 1 {
                 if self.at(i, j) > 0 {
                     let tile_id = self.at(i, j) as usize;
@@ -346,8 +348,7 @@ impl Diamond {
             Rgba([128, 128, 128, 255]),
         );
         for i in 0..self.size {
-            let (b, e) = self.span(i);
-            for j in b..e {
+            for j in self.span(i) {
                 if drawn.contains(&self.at(i, j)) {
                     continue;
                 }

@@ -63,13 +63,14 @@ impl Diamond {
     }
     fn span(&self, i: usize) -> Range<usize> {
         if i < self.size / 2 {
-            Range{start: self.size / 2 - 1 - i, end: self.size - self.size / 2 + 1 + i}
+            Range {
+                start: self.size / 2 - 1 - i,
+                end: self.size - self.size / 2 + 1 + i,
+            }
         } else {
-            Range{
-                start:
-                self.size / 2 - 1 - (self.size - i - 1),
-                end: 
-                self.size - self.size / 2 + 1 + (self.size - i - 1),
+            Range {
+                start: self.size / 2 - 1 - (self.size - i - 1),
+                end: self.size - self.size / 2 + 1 + (self.size - i - 1),
             }
         }
     }
@@ -89,7 +90,7 @@ impl Diamond {
     }
     fn find_square(&mut self) -> Option<Coords> {
         for i in self.current_square.0..self.size - 1 {
-            let Range{start: b, end: e} = self.span(i);
+            let Range { start: b, end: e } = self.span(i);
             for j in (if i == self.current_square.0 {
                 self.current_square.1
             } else {
@@ -106,7 +107,7 @@ impl Diamond {
                 }
             }
         }
-        let  Range{start: b, end: _} = self.span(0);
+        let Range { start: b, end: _ } = self.span(0);
         self.current_square = (0, b);
         None
     }
@@ -168,7 +169,7 @@ impl Diamond {
     }
     fn eliminate_stuck_tiles(&mut self) {
         for i in 0..self.size - 1 {
-            let Range{start: b, end: e} = self.span(i);
+            let Range { start: b, end: e } = self.span(i);
             for j in b..e - 1 {
                 if self.at(i, j) > 0 {
                     let tile_id = self.at(i, j) as usize;

@@ -54,48 +54,45 @@ impl Diamond {
     fn at(&self, m: usize, n: usize) -> i64 {
         self.data[m * self.size + n]
     }
-    fn fill(&mut self) {
-        for i in 0..self.size / 2 {
-            for j in 0..self.size / 2 {
-                if i + j < self.size / 2 - 1 {
-                    *self.at_ref(i, j) = -1;
-                    *self.at_ref(self.size - i - 1, j) = -1;
-                    *self.at_ref(i, self.size - j - 1) = -1;
-                    *self.at_ref(self.size - i - 1, self.size - j - 1) = -1;
-                }
-            }
-        }
-    }
     fn clear_square(&mut self, i: usize, j: usize) {
         *self.at_ref(i, j) = 0;
         *self.at_ref(i + 1, j) = 0;
         *self.at_ref(i, j + 1) = 0;
         *self.at_ref(i + 1, j + 1) = 0;
     }
+    fn span(&self, i: usize) -> (usize, usize) {
+        if i < self.size / 2 {
+            (self.size / 2 - 1 - i, self.size - self.size / 2 + 1 + i)
+        } else {
+            (
+                self.size / 2 - 1 - (self.size - i - 1),
+                self.size - self.size / 2 + 1 + (self.size - i - 1),
+            )
+        }
+    }
     fn extend(&mut self) {
         let new_size = self.size + 2;
         let mut new_data = vec![0; new_size * new_size];
         for i in 0..self.size {
-            for j in 0..self.size {
-                if self.at(i, j) != -1 {
-                    new_data[(i + 1) * new_size + j + 1] = self.at(i, j);
-                }
+            let (b, e) = self.span(i);
+            for j in b..e {
+                new_data[(i + 1) * new_size + j + 1] = self.at(i, j);
             }
         }
         self.data = new_data;
         self.size = new_size;
-        self.fill();
         self.tiles.par_iter_mut().for_each(|(_, tile)| {
             tile.coord = (tile.coord.0 + 1, tile.coord.1 + 1);
         });
     }
     fn find_square(&mut self) -> Option<Coords> {
         for i in self.current_square.0..self.size - 1 {
+            let (b, e) = self.span(i);
             for j in (if i == self.current_square.0 {
                 self.current_square.1
             } else {
-                0
-            })..self.size - 1
+                b
+            })..e - 1
             {
                 if self.at(i, j) == 0
                     && self.at(i + 1, j) == 0
@@ -107,7 +104,8 @@ impl Diamond {
                 }
             }
         }
-        self.current_square = (0, 0);
+        let (b, _) = self.span(0);
+        self.current_square = (0, b);
         None
     }
     fn next_tile_id(&mut self) -> usize {
@@ -168,7 +166,8 @@ impl Diamond {
     }
     fn eliminate_stuck_tiles(&mut self) {
         for i in 0..self.size - 1 {
-            for j in 0..self.size - 1 {
+            let (b, e) = self.span(i);
+            for j in b..e - 1 {
                 if self.at(i, j) > 0 {
                     let tile_id = self.at(i, j) as usize;
                     if self.tiles[&tile_id].orientation == Orientation::Bottom
@@ -337,42 +336,41 @@ impl Diamond {
             ])
         };
         let mut drawn: HashSet<i64> = HashSet::new();
-        let gray = Rgba([128, 128, 128, 255]);
         let black = Rgba([0, 0, 0, 255]);
+        draw_filled_rect_mut(
+            &mut im,
+            Rect::at(0, 0).of_size(
+                (self.size * tile_size) as u32,
+                (self.size * tile_size) as u32,
+            ),
+            Rgba([128, 128, 128, 255]),
+        );
         for i in 0..self.size {
-            for j in 0..self.size {
-                if self.at(i, j) > 0 {
-                    if drawn.contains(&self.at(i, j)) {
-                        continue;
-                    }
-                    let tile = self.tiles[&(self.at(i, j) as usize)];
-                    let (src, w, h) = match tile.orientation {
-                        Orientation::Top => (int_to_color(colors.top), 2, 1),
-                        Orientation::Bottom => (int_to_color(colors.bottom), 2, 1),
-                        Orientation::Left => (int_to_color(colors.left), 1, 2),
-                        Orientation::Right => (int_to_color(colors.right), 1, 2),
-                    };
-                    draw_hollow_rect_mut(
-                        &mut im,
-                        Rect::at((j * tile_size) as i32, (i * tile_size) as i32)
-                            .of_size((w * tile_size) as u32, (h * tile_size) as u32),
-                        black,
-                    );
-                    draw_filled_rect_mut(
-                        &mut im,
-                        Rect::at((j * tile_size) as i32 + 1, (i * tile_size) as i32 + 1)
-                            .of_size((w * tile_size) as u32 - 2, (h * tile_size) as u32 - 2),
-                        src,
-                    );
-                    drawn.insert(self.at(i, j));
-                } else {
-                    draw_filled_rect_mut(
-                        &mut im,
-                        Rect::at((j * tile_size) as i32, (i * tile_size) as i32)
-                            .of_size(tile_size as u32, tile_size as u32),
-                        gray,
-                    );
+            let (b, e) = self.span(i);
+            for j in b..e {
+                if drawn.contains(&self.at(i, j)) {
+                    continue;
                 }
+                let tile = self.tiles[&(self.at(i, j) as usize)];
+                let (src, w, h) = match tile.orientation {
+                    Orientation::Top => (int_to_color(colors.top), 2, 1),
+                    Orientation::Bottom => (int_to_color(colors.bottom), 2, 1),
+                    Orientation::Left => (int_to_color(colors.left), 1, 2),
+                    Orientation::Right => (int_to_color(colors.right), 1, 2),
+                };
+                draw_hollow_rect_mut(
+                    &mut im,
+                    Rect::at((j * tile_size) as i32, (i * tile_size) as i32)
+                        .of_size((w * tile_size) as u32, (h * tile_size) as u32),
+                    black,
+                );
+                draw_filled_rect_mut(
+                    &mut im,
+                    Rect::at((j * tile_size) as i32 + 1, (i * tile_size) as i32 + 1)
+                        .of_size((w * tile_size) as u32 - 2, (h * tile_size) as u32 - 2),
+                    src,
+                );
+                drawn.insert(self.at(i, j));
             }
         }
         if ts > 16 {

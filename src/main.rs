@@ -1,6 +1,7 @@
+use actix_web::{dev::Body, get, web, App, HttpResponse, HttpServer};
 use clap::Clap;
 use image::imageops::{resize, FilterType};
-use image::{Rgba, RgbaImage};
+use image::{DynamicImage, Rgba, RgbaImage};
 use imageproc::drawing::{draw_filled_rect_mut, draw_hollow_rect_mut};
 use imageproc::rect::Rect;
 use rand::Rng;
@@ -34,6 +35,11 @@ struct Diamond {
     tile_id: usize,
     free_ids: VecDeque<usize>,
     current_square: Coords,
+}
+
+enum ImageAction {
+    Save(String),
+    Return,
 }
 
 impl Diamond {
@@ -324,7 +330,7 @@ impl Diamond {
         }
         println!();
     }
-    pub fn draw_image(&self, fname: &str, ts: usize, colors: &Colors) {
+    pub fn draw_image(&self, ts: usize, colors: &Colors, action: ImageAction) -> Option<Vec<u8>> {
         let tile_size = if ts > 16 { ts / 2 } else { ts };
         let mut im = RgbaImage::new(
             (self.size * tile_size) as u32,
@@ -378,7 +384,21 @@ impl Diamond {
         if ts > 16 {
             im = resize(&im, im.width() * 2, im.height() * 2, FilterType::Nearest);
         }
-        im.save(fname).expect("FAILED TO SAVE AN IMAGE!");
+        match action {
+            ImageAction::Save(s) => {
+                im.save(s).expect("FAILED TO SAVE AN IMAGE!");
+                None
+            }
+            ImageAction::Return => {
+                let mut bytes: Vec<u8> = Vec::new();
+                match DynamicImage::ImageRgba8(im)
+                    .write_to(&mut bytes, image::ImageOutputFormat::Png)
+                {
+                    Ok(()) => Some(bytes),
+                    Err(_) => None,
+                }
+            }
+        }
     }
 }
 
@@ -402,6 +422,14 @@ impl Colors {
             right: r,
         }
     }
+    pub fn default() -> Colors {
+        Colors {
+            top: 0xff0000ff,
+            bottom: 0x0000ffff,
+            left: 0xffff00ff,
+            right: 0x00ff00ff,
+        }
+    }
 }
 
 #[derive(Clap)]
@@ -411,7 +439,7 @@ struct Opts {
     steps: u64,
     #[clap(short, long, default_value = "test.png")]
     filename: String,
-    #[clap(short('s'), long, default_value = "16", validator(|x| if x.parse::<usize>().unwrap_or(0) > 0 {Ok(())} else {Err("Must be >0")}))]
+    #[clap(short('s'), long, default_value = "8", validator(|x| if x.parse::<usize>().unwrap_or(0) > 0 {Ok(())} else {Err("Must be >0")}))]
     tile_size: usize,
     #[clap(short, long, default_value = "ff0000ff", parse(try_from_str = parse_hex))]
     top_color: u32,
@@ -423,15 +451,45 @@ struct Opts {
     right_color: u32,
     #[clap(short('a'), long)]
     save_all_steps: bool,
+    #[clap(short('w'), long)]
+    web: bool,
+}
+
+#[get("/{steps}/{size}")]
+async fn index(web::Path((steps, size)): web::Path<(u64, usize)>) -> HttpResponse {
+    let mut x = Diamond::new();
+    x.generate(steps);
+    let f = x.draw_image(size, &Colors::default(), ImageAction::Return);
+    HttpResponse::Ok()
+        .content_type("image/png")
+        .body(Body::from_slice(&(f.expect("IMAGE IS NOT HERE!"))))
+}
+
+#[actix_web::main]
+async fn amain() -> std::io::Result<()> {
+    let port = 3000;
+
+    HttpServer::new(|| App::new().service(index))
+        .bind(("0.0.0.0", port))?
+        .run()
+        .await
 }
 
 fn main() {
     let opts: Opts = Opts::parse();
+    if opts.web {
+        match amain() {
+            Ok(()) => (),
+            Err(s) => {
+                println!("SOMETHING WENT WRONG! {}", s);
+            }
+        }
+        return;
+    }
     let mut x = Diamond::new();
     if opts.save_all_steps {
         for i in 0..opts.steps {
             x.draw_image(
-                &format!("{}_{}.png", opts.filename, i + 1),
                 opts.tile_size,
                 &Colors::new(
                     opts.top_color,
@@ -439,6 +497,7 @@ fn main() {
                     opts.left_color,
                     opts.right_color,
                 ),
+                ImageAction::Save(format!("{}_{}.png", opts.filename, i + 1)),
             );
             x.step();
         }
@@ -447,7 +506,6 @@ fn main() {
         x.generate(opts.steps - 1);
         println!("Rendering...");
         x.draw_image(
-            &opts.filename,
             opts.tile_size,
             &Colors::new(
                 opts.top_color,
@@ -455,6 +513,7 @@ fn main() {
                 opts.left_color,
                 opts.right_color,
             ),
-        )
+            ImageAction::Save(opts.filename),
+        );
     }
 }

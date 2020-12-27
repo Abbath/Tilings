@@ -337,14 +337,6 @@ impl Diamond {
             (self.size * tile_size) as u32,
             (self.size * tile_size) as u32,
         );
-        let int_to_color = |c: u32| {
-            Rgba([
-                (c >> 24 & 0xff) as u8,
-                (c >> 16 & 0xff) as u8,
-                (c >> 8 & 0xff) as u8,
-                (c & 0xff) as u8,
-            ])
-        };
         let black = Rgba([0, 0, 0, 255]);
         draw_filled_rect_mut(
             &mut im,
@@ -357,10 +349,10 @@ impl Diamond {
         for tile in self.tiles.values() {
             let (i, j) = tile.coord;
             let (src, w, h) = match tile.orientation {
-                Orientation::Top => (int_to_color(colors.top), 2, 1),
-                Orientation::Bottom => (int_to_color(colors.bottom), 2, 1),
-                Orientation::Left => (int_to_color(colors.left), 1, 2),
-                Orientation::Right => (int_to_color(colors.right), 1, 2),
+                Orientation::Top => (colors.top, 2, 1),
+                Orientation::Bottom => (colors.bottom, 2, 1),
+                Orientation::Left => (colors.left, 1, 2),
+                Orientation::Right => (colors.right, 1, 2),
             };
             draw_hollow_rect_mut(
                 &mut im,
@@ -401,28 +393,36 @@ fn parse_hex(input: &str) -> Result<u32, ParseIntError> {
 }
 
 struct Colors {
-    top: u32,
-    bottom: u32,
-    left: u32,
-    right: u32,
+    top: Rgba<u8>,
+    bottom: Rgba<u8>,
+    left: Rgba<u8>,
+    right: Rgba<u8>,
 }
 
 impl Colors {
     pub fn new(t: u32, b: u32, l: u32, r: u32) -> Colors {
         Colors {
-            top: t,
-            bottom: b,
-            left: l,
-            right: r,
+            top: Colors::int_to_color(t),
+            bottom: Colors::int_to_color(b),
+            left: Colors::int_to_color(l),
+            right: Colors::int_to_color(r),
         }
     }
     pub fn default() -> Colors {
         Colors {
-            top: 0xff0000ff,
-            bottom: 0x0000ffff,
-            left: 0xffff00ff,
-            right: 0x00ff00ff,
+            top: Colors::int_to_color(0xff0000ff),
+            bottom: Colors::int_to_color(0x0000ffff),
+            left: Colors::int_to_color(0xffff00ff),
+            right: Colors::int_to_color(0x00ff00ff),
         }
+    }
+    fn int_to_color(c: u32) -> Rgba<u8> {
+        Rgba([
+            (c >> 24 & 0xff) as u8,
+            (c >> 16 & 0xff) as u8,
+            (c >> 8 & 0xff) as u8,
+            (c & 0xff) as u8,
+        ])
     }
 }
 

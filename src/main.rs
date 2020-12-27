@@ -397,7 +397,7 @@ impl Diamond {
         }
         match action {
             ImageAction::Save(s) => {
-                im.save(s).expect("FAILED TO SAVE AN IMAGE {}!");
+                im.save(s).expect("FAILED TO SAVE AN IMAGE!");
                 None
             }
             ImageAction::Return => {
@@ -435,10 +435,10 @@ impl Colors {
     }
     pub fn default() -> Colors {
         Colors {
-            top: Colors::int_to_color(0xff0000ff),
-            bottom: Colors::int_to_color(0x0000ffff),
-            left: Colors::int_to_color(0xffff00ff),
-            right: Colors::int_to_color(0x00ff00ff),
+            top: Rgba([255, 0, 0, 255]),
+            bottom: Rgba([0, 0, 255, 255]),
+            left: Rgba([255, 255, 0, 255]),
+            right: Rgba([0, 255, 0, 255]),
         }
     }
     fn int_to_color(c: u32) -> Rgba<u8> {
@@ -551,7 +551,7 @@ fn main() {
             println!("{}", serialized);
         } else {
             std::fs::write(&output, serialized)
-                .unwrap_or_else(|_| panic!("COULD NOT SAVE FILE {}!", output));
+                .unwrap_or_else(|err| panic!("COULD NOT SAVE FILE {} {}!", output, err));
         }
     }
 }

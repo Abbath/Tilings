@@ -4,6 +4,7 @@ use image::imageops::{resize, FilterType};
 use image::{DynamicImage, Rgba, RgbaImage};
 use imageproc::drawing::{draw_filled_rect_mut, draw_hollow_rect_mut};
 use imageproc::rect::Rect;
+use progressing::{mapping::Bar as MappingBar, Baring};
 use rand::Rng;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -56,17 +57,36 @@ impl Diamond {
         d.tile();
         d
     }
+    fn to_offset(&self, i: usize, j: usize, size: usize) -> usize {
+        let j = j - self.half_span(i, size);
+        if i < size / 2 {
+            i * (2 + i * 2) / 2 + j
+        } else {
+            let s = size / 2;
+            let s2 = size - i;
+            let res = s * (2 + s * 2) - s2 * (2 + s2 * 2) / 2 + j;
+            res
+        }
+    }
     fn at_ref(&mut self, m: usize, n: usize) -> &mut usize {
-        &mut self.data[m * self.size + n]
+        let l = self.to_offset(m, n, self.size);
+        &mut self.data[l]
     }
     fn at(&self, m: usize, n: usize) -> usize {
-        self.data[m * self.size + n]
+        self.data[self.to_offset(m, n, self.size)]
     }
     fn clear_square(&mut self, i: usize, j: usize) {
         *self.at_ref(i, j) = 0;
         *self.at_ref(i + 1, j) = 0;
         *self.at_ref(i, j + 1) = 0;
         *self.at_ref(i + 1, j + 1) = 0;
+    }
+    fn half_span(&self, i: usize, size: usize) -> usize {
+        if i < size / 2 {
+            size / 2 - 1 - i
+        } else {
+            size / 2 - 1 - (size - i - 1)
+        }
     }
     fn span(&self, i: usize) -> Range<usize> {
         if i < self.size / 2 {
@@ -83,10 +103,10 @@ impl Diamond {
     }
     fn extend(&mut self) {
         let new_size = self.size + 2;
-        let mut new_data = vec![0; new_size * new_size];
+        let mut new_data = vec![0; new_size * (2 + new_size / 2)];
         for i in 0..self.size {
             for j in self.span(i) {
-                new_data[(i + 1) * new_size + j + 1] = self.at(i, j);
+                new_data[self.to_offset(i + 1, j + 1, new_size)] = self.at(i, j);
             }
         }
         self.data = new_data;
@@ -115,7 +135,7 @@ impl Diamond {
             }
         }
         let Range { start: b, end: _ } = self.span(0);
-        self.current_square = (0, b);
+        self.current_square = (0, b + 1);
         None
     }
     fn next_tile_id(&mut self) -> usize {
@@ -181,6 +201,7 @@ impl Diamond {
                 if self.at(i, j) > 0 {
                     let tile_id = self.at(i, j) as usize;
                     if self.tiles[&tile_id].orientation == Orientation::Bottom
+                        && j > b
                         && self.at(i + 1, j) > 0
                     {
                         let tile_id_2 = self.at(i + 1, j) as usize;
@@ -286,10 +307,16 @@ impl Diamond {
         self.move_tiles();
         self.tile();
     }
-    pub fn generate(&mut self, n: u64) {
-        for _ in 0..n {
+    pub fn generate(&mut self, n: usize) {
+        let mut progress_bar = MappingBar::with_range(0, n + 1);
+        progress_bar.set_len(32);
+        progress_bar.set(2 as usize);
+        for i in 0..n {
+            progress_bar.set(i + 2);
+            print!("\r{}", progress_bar);
             self.step();
         }
+        println!();
     }
     #[allow(dead_code)]
     pub fn print(&self) {
@@ -346,6 +373,8 @@ impl Diamond {
             ),
             Rgba([128, 128, 128, 255]),
         );
+        let mut progress_bar = MappingBar::with_range(0, self.tiles.len());
+        let mut counter: usize = 0;
         for tile in self.tiles.values() {
             let (i, j) = tile.coord;
             let (src, w, h) = match tile.orientation {
@@ -366,6 +395,9 @@ impl Diamond {
                     .of_size((w * tile_size) as u32 - 2, (h * tile_size) as u32 - 2),
                 src,
             );
+            counter += 1;
+            progress_bar.set(counter);
+            print!("\r{}", progress_bar);
         }
         if ts > 16 {
             im = resize(&im, im.width() * 2, im.height() * 2, FilterType::Nearest);
@@ -430,7 +462,7 @@ impl Colors {
 #[clap(version = "1.0", author = "Abbath")]
 struct Opts {
     #[clap(short('n'), long, default_value = "256")]
-    steps: u64,
+    steps: usize,
     #[clap(short, long, default_value = "test.png")]
     filename: String,
     #[clap(short('s'), long, default_value = "8", validator(|x| if x.parse::<usize>().unwrap_or(0) > 0 {Ok(())} else {Err("Must be >0")}))]
@@ -454,7 +486,7 @@ struct Opts {
 }
 
 #[get("/{steps}/{size}")]
-async fn index(web::Path((steps, size)): web::Path<(u64, usize)>) -> HttpResponse {
+async fn index(web::Path((steps, size)): web::Path<(usize, usize)>) -> HttpResponse {
     let mut x = Diamond::new();
     x.generate(steps);
     let f = x.draw_image(size, &Colors::default(), ImageAction::Return);
@@ -520,6 +552,7 @@ fn main() {
             ),
             ImageAction::Save(opts.filename),
         );
+        println!("Done.");
     }
     match opts.output {
         Some(output) => {

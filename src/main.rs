@@ -16,17 +16,17 @@ use std::ops::Range;
 type Coords = (usize, usize);
 
 #[derive(Copy, Clone, PartialEq, Serialize, Deserialize)]
-enum Orientation {
-    Top = 1,
-    Bottom = 2,
-    Left = 3,
-    Right = 4,
+enum Direction {
+    T = 1,
+    B = 2,
+    L = 3,
+    R = 4,
 }
 
 #[derive(Copy, Clone, Serialize, Deserialize)]
 struct Tile {
-    coord: Coords,
-    orientation: Orientation,
+    pos: Coords,
+    dir: Direction,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -112,7 +112,7 @@ impl Diamond {
         self.data = new_data;
         self.size = new_size;
         self.tiles.par_iter_mut().for_each(|(_, tile)| {
-            tile.coord = (tile.coord.0 + 1, tile.coord.1 + 1);
+            tile.pos = (tile.pos.0 + 1, tile.pos.1 + 1);
         });
     }
     fn find_square(&mut self) -> Option<Coords> {
@@ -157,8 +157,8 @@ impl Diamond {
             self.tiles.insert(
                 tid,
                 Tile {
-                    coord: c,
-                    orientation: Orientation::Top,
+                    pos: c,
+                    dir: Direction::T,
                 },
             );
             let tid = self.next_tile_id();
@@ -167,8 +167,8 @@ impl Diamond {
             self.tiles.insert(
                 tid,
                 Tile {
-                    coord: (c.0 + 1, c.1),
-                    orientation: Orientation::Bottom,
+                    pos: (c.0 + 1, c.1),
+                    dir: Direction::B,
                 },
             );
         } else {
@@ -178,8 +178,8 @@ impl Diamond {
             self.tiles.insert(
                 tid,
                 Tile {
-                    coord: c,
-                    orientation: Orientation::Left,
+                    pos: c,
+                    dir: Direction::L,
                 },
             );
             let tid = self.next_tile_id();
@@ -188,8 +188,8 @@ impl Diamond {
             self.tiles.insert(
                 tid,
                 Tile {
-                    coord: (c.0, c.1 + 1),
-                    orientation: Orientation::Right,
+                    pos: (c.0, c.1 + 1),
+                    dir: Direction::R,
                 },
             );
         }
@@ -200,23 +200,18 @@ impl Diamond {
             for j in b..e - 1 {
                 if self.at(i, j) > 0 {
                     let tile_id = self.at(i, j) as usize;
-                    if self.tiles[&tile_id].orientation == Orientation::Bottom
-                        && j > b
-                        && self.at(i + 1, j) > 0
-                    {
+                    if self.tiles[&tile_id].dir == Direction::B && j > b && self.at(i + 1, j) > 0 {
                         let tile_id_2 = self.at(i + 1, j) as usize;
-                        if self.tiles[&tile_id_2].orientation == Orientation::Top {
+                        if self.tiles[&tile_id_2].dir == Direction::T {
                             self.tiles.remove(&tile_id);
                             self.tiles.remove(&tile_id_2);
                             self.clear_square(i, j);
                             self.free_ids.push_back(tile_id);
                             self.free_ids.push_back(tile_id_2);
                         }
-                    } else if self.tiles[&tile_id].orientation == Orientation::Right
-                        && self.at(i, j + 1) > 0
-                    {
+                    } else if self.tiles[&tile_id].dir == Direction::R && self.at(i, j + 1) > 0 {
                         let tile_id_2 = self.at(i, j + 1) as usize;
-                        if self.tiles[&tile_id_2].orientation == Orientation::Left {
+                        if self.tiles[&tile_id_2].dir == Direction::L {
                             self.tiles.remove(&tile_id);
                             self.tiles.remove(&tile_id_2);
                             self.clear_square(i, j);
@@ -229,31 +224,31 @@ impl Diamond {
         }
     }
     fn move_tiles(&mut self) {
-        let mut to_move: Vec<(usize, Coords, Orientation)> = Vec::new();
+        let mut to_move: Vec<(usize, Coords, Direction)> = Vec::new();
         for (id, tile) in self.tiles.iter_mut() {
-            to_move.push((*id, tile.coord, tile.orientation));
+            to_move.push((*id, tile.pos, tile.dir));
         }
         self.tiles.par_iter_mut().for_each(|(_, tile)| {
-            let c = tile.coord;
-            match tile.orientation {
-                Orientation::Top => {
-                    tile.coord = (c.0 - 1, c.1);
+            let c = tile.pos;
+            match tile.dir {
+                Direction::T => {
+                    tile.pos = (c.0 - 1, c.1);
                 }
-                Orientation::Bottom => {
-                    tile.coord = (c.0 + 1, c.1);
+                Direction::B => {
+                    tile.pos = (c.0 + 1, c.1);
                 }
-                Orientation::Left => {
-                    tile.coord = (c.0, c.1 - 1);
+                Direction::L => {
+                    tile.pos = (c.0, c.1 - 1);
                 }
-                Orientation::Right => {
-                    tile.coord = (c.0, c.1 + 1);
+                Direction::R => {
+                    tile.pos = (c.0, c.1 + 1);
                 }
             }
         });
         for m in to_move {
             let (id, (i, j), o) = m;
             match o {
-                Orientation::Top => {
+                Direction::T => {
                     if self.at(i, j) == id {
                         *self.at_ref(i, j) = 0;
                     }
@@ -263,7 +258,7 @@ impl Diamond {
                     *self.at_ref(i - 1, j) = id;
                     *self.at_ref(i - 1, j + 1) = id;
                 }
-                Orientation::Bottom => {
+                Direction::B => {
                     if self.at(i, j) == id {
                         *self.at_ref(i, j) = 0;
                     }
@@ -273,7 +268,7 @@ impl Diamond {
                     *self.at_ref(i + 1, j) = id;
                     *self.at_ref(i + 1, j + 1) = id;
                 }
-                Orientation::Left => {
+                Direction::L => {
                     if self.at(i, j) == id {
                         *self.at_ref(i, j) = 0;
                     }
@@ -283,7 +278,7 @@ impl Diamond {
                     *self.at_ref(i, j - 1) = id;
                     *self.at_ref(i + 1, j - 1) = id;
                 }
-                Orientation::Right => {
+                Direction::R => {
                     if self.at(i, j) == id {
                         *self.at_ref(i, j) = 0;
                     }
@@ -325,17 +320,17 @@ impl Diamond {
                 if self.at(i, j) > 0 {
                     print!(
                         " {} ",
-                        match self.tiles[&(self.at(i, j) as usize)].orientation {
-                            Orientation::Top => {
+                        match self.tiles[&(self.at(i, j) as usize)].dir {
+                            Direction::T => {
                                 "T"
                             }
-                            Orientation::Bottom => {
+                            Direction::B => {
                                 "B"
                             }
-                            Orientation::Left => {
+                            Direction::L => {
                                 "L"
                             }
-                            Orientation::Right => {
+                            Direction::R => {
                                 "R"
                             }
                         }
@@ -376,12 +371,12 @@ impl Diamond {
         let mut progress_bar = MappingBar::with_range(0, self.tiles.len());
         let mut counter: usize = 0;
         for tile in self.tiles.values() {
-            let (i, j) = tile.coord;
-            let (src, w, h) = match tile.orientation {
-                Orientation::Top => (colors.top, 2, 1),
-                Orientation::Bottom => (colors.bottom, 2, 1),
-                Orientation::Left => (colors.left, 1, 2),
-                Orientation::Right => (colors.right, 1, 2),
+            let (i, j) = tile.pos;
+            let (src, w, h) = match tile.dir {
+                Direction::T => (colors.top, 2, 1),
+                Direction::B => (colors.bottom, 2, 1),
+                Direction::L => (colors.left, 1, 2),
+                Direction::R => (colors.right, 1, 2),
             };
             draw_hollow_rect_mut(
                 &mut im,
@@ -399,6 +394,7 @@ impl Diamond {
             progress_bar.set(counter);
             print!("\r{}", progress_bar);
         }
+        println!();
         if ts > 16 {
             im = resize(&im, im.width() * 2, im.height() * 2, FilterType::Nearest);
         }

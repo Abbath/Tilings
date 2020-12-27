@@ -64,8 +64,7 @@ impl Diamond {
         } else {
             let s = size / 2;
             let s2 = size - i;
-            let res = s * (2 + s * 2) - s2 * (2 + s2 * 2) / 2 + j;
-            res
+            s * (2 + s * 2) - s2 * (2 + s2 * 2) / 2 + j
         }
     }
     fn at_ref(&mut self, m: usize, n: usize) -> &mut usize {
@@ -369,8 +368,7 @@ impl Diamond {
             Rgba([128, 128, 128, 255]),
         );
         let mut progress_bar = MappingBar::with_range(0, self.tiles.len());
-        let mut counter: usize = 0;
-        for tile in self.tiles.values() {
+        for (counter, tile) in self.tiles.values().enumerate() {
             let (i, j) = tile.pos;
             let (src, w, h) = match tile.dir {
                 Direction::T => (colors.top, 2, 1),
@@ -390,8 +388,7 @@ impl Diamond {
                     .of_size((w * tile_size) as u32 - 2, (h * tile_size) as u32 - 2),
                 src,
             );
-            counter += 1;
-            progress_bar.set(counter);
+            progress_bar.set(counter + 1);
             print!("\r{}", progress_bar);
         }
         println!();
@@ -400,7 +397,7 @@ impl Diamond {
         }
         match action {
             ImageAction::Save(s) => {
-                im.save(s).expect("FAILED TO SAVE AN IMAGE!");
+                im.save(s).expect("FAILED TO SAVE AN IMAGE {}!");
                 None
             }
             ImageAction::Return => {
@@ -485,10 +482,12 @@ struct Opts {
 async fn index(web::Path((steps, size)): web::Path<(usize, usize)>) -> HttpResponse {
     let mut x = Diamond::new();
     x.generate(steps);
-    let f = x.draw_image(size, &Colors::default(), ImageAction::Return);
+    let f = x
+        .draw_image(size, &Colors::default(), ImageAction::Return)
+        .expect("IMAGE IS NOT HERE!");
     HttpResponse::Ok()
         .content_type("image/png")
-        .body(Body::from_slice(&(f.expect("IMAGE IS NOT HERE!"))))
+        .body(Body::from_slice(&f))
 }
 
 #[actix_web::main]
@@ -504,19 +503,15 @@ async fn amain() -> std::io::Result<()> {
 fn main() {
     let opts: Opts = Opts::parse();
     if opts.web {
-        match amain() {
-            Ok(()) => (),
-            Err(s) => {
-                println!("SOMETHING WENT WRONG! {}", s);
-            }
-        }
+        amain().unwrap_or_else(|s| panic!(format!("SOMETHING WENT WRONG {}!", s)));
         return;
     }
     let mut x = match opts.input {
         Some(input) => {
-            let content =
-                std::fs::read_to_string(&input).expect(&format!("COULD NOT LOAD FILE! {}", input));
-            serde_json::from_str(&content).expect(&format!("COULD NOT PARSE FILE! {}", input))
+            let content = std::fs::read_to_string(&input)
+                .unwrap_or_else(|err| panic!("COULD NOT LOAD FILE {} WITH ERROR {}!", input, err));
+            serde_json::from_str(&content)
+                .unwrap_or_else(|err| panic!("COULD NOT PARSE FILE {} WITH ERROR {}!", input, err))
         }
         None => Diamond::new(),
     };
@@ -550,16 +545,13 @@ fn main() {
         );
         println!("Done.");
     }
-    match opts.output {
-        Some(output) => {
-            let serialized = serde_json::to_string(&x).unwrap();
-            if output == "--" {
-                println!("{}", serialized);
-            } else {
-                std::fs::write(&output, serialized)
-                    .expect(&format!("COULD NOT SAVE FILE! {}", output));
-            }
+    if let Some(output) = opts.output {
+        let serialized = serde_json::to_string(&x).unwrap();
+        if output == "--" {
+            println!("{}", serialized);
+        } else {
+            std::fs::write(&output, serialized)
+                .unwrap_or_else(|_| panic!("COULD NOT SAVE FILE {}!", output));
         }
-        None => (),
     }
 }

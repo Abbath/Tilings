@@ -6,6 +6,7 @@ use imageproc::drawing::{draw_filled_rect_mut, draw_hollow_rect_mut};
 use imageproc::rect::Rect;
 use rand::Rng;
 use rayon::prelude::*;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::collections::VecDeque;
@@ -14,7 +15,7 @@ use std::ops::Range;
 
 type Coords = (usize, usize);
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize)]
 enum Orientation {
     Top = 1,
     Bottom = 2,
@@ -22,12 +23,13 @@ enum Orientation {
     Right = 4,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 struct Tile {
     coord: Coords,
     orientation: Orientation,
 }
 
+#[derive(Serialize, Deserialize)]
 struct Diamond {
     size: usize,
     data: Vec<i64>,
@@ -453,6 +455,10 @@ struct Opts {
     save_all_steps: bool,
     #[clap(short('w'), long)]
     web: bool,
+    #[clap(short('i'), long)]
+    input: Option<String>,
+    #[clap(short('o'), long)]
+    output: Option<String>,
 }
 
 #[get("/{steps}/{size}")]
@@ -486,7 +492,14 @@ fn main() {
         }
         return;
     }
-    let mut x = Diamond::new();
+    let mut x = match opts.input {
+        Some(input) => {
+            let content =
+                std::fs::read_to_string(&input).expect(&format!("COULD NOT LOAD FILE! {}", input));
+            serde_json::from_str(&content).expect(&format!("COULD NOT PARSE FILE! {}", input))
+        }
+        None => Diamond::new(),
+    };
     if opts.save_all_steps {
         for i in 0..opts.steps {
             x.draw_image(
@@ -515,5 +528,17 @@ fn main() {
             ),
             ImageAction::Save(opts.filename),
         );
+    }
+    match opts.output {
+        Some(output) => {
+            let serialized = serde_json::to_string(&x).unwrap();
+            if output == "--" {
+                println!("{}", serialized);
+            } else {
+                std::fs::write(&output, serialized)
+                    .expect(&format!("COULD NOT SAVE FILE! {}", output));
+            }
+        }
+        None => (),
     }
 }

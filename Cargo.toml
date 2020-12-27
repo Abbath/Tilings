@@ -13,3 +13,5 @@ clap = "3.0.0-beta.2"
 image = "*"
 imageproc = "*"
 actix-web = { version = "3" }
+serde = "*"
+serde_json = "*"

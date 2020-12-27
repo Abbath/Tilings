@@ -8,7 +8,6 @@ use rand::Rng;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::collections::HashSet;
 use std::collections::VecDeque;
 use std::num::ParseIntError;
 use std::ops::Range;
@@ -32,7 +31,7 @@ struct Tile {
 #[derive(Serialize, Deserialize)]
 struct Diamond {
     size: usize,
-    data: Vec<i64>,
+    data: Vec<usize>,
     tiles: HashMap<usize, Tile>,
     tile_id: usize,
     free_ids: VecDeque<usize>,
@@ -57,10 +56,10 @@ impl Diamond {
         d.tile();
         d
     }
-    fn at_ref(&mut self, m: usize, n: usize) -> &mut i64 {
+    fn at_ref(&mut self, m: usize, n: usize) -> &mut usize {
         &mut self.data[m * self.size + n]
     }
-    fn at(&self, m: usize, n: usize) -> i64 {
+    fn at(&self, m: usize, n: usize) -> usize {
         self.data[m * self.size + n]
     }
     fn clear_square(&mut self, i: usize, j: usize) {
@@ -133,8 +132,8 @@ impl Diamond {
         let dir = rng.gen::<u64>() % 2;
         if dir == 0 {
             let tid = self.next_tile_id();
-            *self.at_ref(c.0, c.1) = tid as i64;
-            *self.at_ref(c.0, c.1 + 1) = tid as i64;
+            *self.at_ref(c.0, c.1) = tid;
+            *self.at_ref(c.0, c.1 + 1) = tid;
             self.tiles.insert(
                 tid,
                 Tile {
@@ -143,8 +142,8 @@ impl Diamond {
                 },
             );
             let tid = self.next_tile_id();
-            *self.at_ref(c.0 + 1, c.1) = tid as i64;
-            *self.at_ref(c.0 + 1, c.1 + 1) = tid as i64;
+            *self.at_ref(c.0 + 1, c.1) = tid;
+            *self.at_ref(c.0 + 1, c.1 + 1) = tid;
             self.tiles.insert(
                 tid,
                 Tile {
@@ -154,8 +153,8 @@ impl Diamond {
             );
         } else {
             let tid = self.next_tile_id();
-            *self.at_ref(c.0, c.1) = tid as i64;
-            *self.at_ref(c.0 + 1, c.1) = tid as i64;
+            *self.at_ref(c.0, c.1) = tid;
+            *self.at_ref(c.0 + 1, c.1) = tid;
             self.tiles.insert(
                 tid,
                 Tile {
@@ -164,8 +163,8 @@ impl Diamond {
                 },
             );
             let tid = self.next_tile_id();
-            *self.at_ref(c.0, c.1 + 1) = tid as i64;
-            *self.at_ref(c.0 + 1, c.1 + 1) = tid as i64;
+            *self.at_ref(c.0, c.1 + 1) = tid;
+            *self.at_ref(c.0 + 1, c.1 + 1) = tid;
             self.tiles.insert(
                 tid,
                 Tile {
@@ -234,44 +233,44 @@ impl Diamond {
             let (id, (i, j), o) = m;
             match o {
                 Orientation::Top => {
-                    if self.at(i, j) == id as i64 {
+                    if self.at(i, j) == id {
                         *self.at_ref(i, j) = 0;
                     }
-                    if self.at(i, j + 1) == id as i64 {
+                    if self.at(i, j + 1) == id {
                         *self.at_ref(i, j + 1) = 0;
                     }
-                    *self.at_ref(i - 1, j) = id as i64;
-                    *self.at_ref(i - 1, j + 1) = id as i64;
+                    *self.at_ref(i - 1, j) = id;
+                    *self.at_ref(i - 1, j + 1) = id;
                 }
                 Orientation::Bottom => {
-                    if self.at(i, j) == id as i64 {
+                    if self.at(i, j) == id {
                         *self.at_ref(i, j) = 0;
                     }
-                    if self.at(i, j + 1) == id as i64 {
+                    if self.at(i, j + 1) == id {
                         *self.at_ref(i, j + 1) = 0;
                     }
-                    *self.at_ref(i + 1, j) = id as i64;
-                    *self.at_ref(i + 1, j + 1) = id as i64;
+                    *self.at_ref(i + 1, j) = id;
+                    *self.at_ref(i + 1, j + 1) = id;
                 }
                 Orientation::Left => {
-                    if self.at(i, j) == id as i64 {
+                    if self.at(i, j) == id {
                         *self.at_ref(i, j) = 0;
                     }
-                    if self.at(i + 1, j) == id as i64 {
+                    if self.at(i + 1, j) == id {
                         *self.at_ref(i + 1, j) = 0;
                     }
-                    *self.at_ref(i, j - 1) = id as i64;
-                    *self.at_ref(i + 1, j - 1) = id as i64;
+                    *self.at_ref(i, j - 1) = id;
+                    *self.at_ref(i + 1, j - 1) = id;
                 }
                 Orientation::Right => {
-                    if self.at(i, j) == id as i64 {
+                    if self.at(i, j) == id {
                         *self.at_ref(i, j) = 0;
                     }
-                    if self.at(i + 1, j) == id as i64 {
+                    if self.at(i + 1, j) == id {
                         *self.at_ref(i + 1, j) = 0;
                     }
-                    *self.at_ref(i, j + 1) = id as i64;
-                    *self.at_ref(i + 1, j + 1) = id as i64;
+                    *self.at_ref(i, j + 1) = id;
+                    *self.at_ref(i + 1, j + 1) = id;
                 }
             }
         }
@@ -346,7 +345,6 @@ impl Diamond {
                 (c & 0xff) as u8,
             ])
         };
-        let mut drawn: HashSet<i64> = HashSet::new();
         let black = Rgba([0, 0, 0, 255]);
         draw_filled_rect_mut(
             &mut im,
@@ -356,32 +354,26 @@ impl Diamond {
             ),
             Rgba([128, 128, 128, 255]),
         );
-        for i in 0..self.size {
-            for j in self.span(i) {
-                if drawn.contains(&self.at(i, j)) {
-                    continue;
-                }
-                let tile = self.tiles[&(self.at(i, j) as usize)];
-                let (src, w, h) = match tile.orientation {
-                    Orientation::Top => (int_to_color(colors.top), 2, 1),
-                    Orientation::Bottom => (int_to_color(colors.bottom), 2, 1),
-                    Orientation::Left => (int_to_color(colors.left), 1, 2),
-                    Orientation::Right => (int_to_color(colors.right), 1, 2),
-                };
-                draw_hollow_rect_mut(
-                    &mut im,
-                    Rect::at((j * tile_size) as i32, (i * tile_size) as i32)
-                        .of_size((w * tile_size) as u32, (h * tile_size) as u32),
-                    black,
-                );
-                draw_filled_rect_mut(
-                    &mut im,
-                    Rect::at((j * tile_size) as i32 + 1, (i * tile_size) as i32 + 1)
-                        .of_size((w * tile_size) as u32 - 2, (h * tile_size) as u32 - 2),
-                    src,
-                );
-                drawn.insert(self.at(i, j));
-            }
+        for tile in self.tiles.values() {
+            let (i, j) = tile.coord;
+            let (src, w, h) = match tile.orientation {
+                Orientation::Top => (int_to_color(colors.top), 2, 1),
+                Orientation::Bottom => (int_to_color(colors.bottom), 2, 1),
+                Orientation::Left => (int_to_color(colors.left), 1, 2),
+                Orientation::Right => (int_to_color(colors.right), 1, 2),
+            };
+            draw_hollow_rect_mut(
+                &mut im,
+                Rect::at((j * tile_size) as i32, (i * tile_size) as i32)
+                    .of_size((w * tile_size) as u32, (h * tile_size) as u32),
+                black,
+            );
+            draw_filled_rect_mut(
+                &mut im,
+                Rect::at((j * tile_size) as i32 + 1, (i * tile_size) as i32 + 1)
+                    .of_size((w * tile_size) as u32 - 2, (h * tile_size) as u32 - 2),
+                src,
+            );
         }
         if ts > 16 {
             im = resize(&im, im.width() * 2, im.height() * 2, FilterType::Nearest);

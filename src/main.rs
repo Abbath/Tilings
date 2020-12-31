@@ -37,6 +37,7 @@ struct Diamond {
     tile_id: usize,
     free_ids: VecDeque<usize>,
     current_square: Coords,
+    p: f64,
 }
 
 enum ImageAction {
@@ -45,7 +46,7 @@ enum ImageAction {
 }
 
 impl Diamond {
-    pub fn new() -> Diamond {
+    pub fn new(p: f64) -> Diamond {
         let mut d = Diamond {
             size: 2,
             data: vec![0; 4],
@@ -53,6 +54,7 @@ impl Diamond {
             tile_id: 1,
             free_ids: VecDeque::new(),
             current_square: (0, 0),
+            p: p,
         };
         d.tile();
         d
@@ -148,8 +150,8 @@ impl Diamond {
     }
     fn tile_square(&mut self, c: Coords) {
         let mut rng = rand::thread_rng();
-        let dir = rng.gen::<u64>() % 2;
-        if dir == 0 {
+        let dir: f64 = rng.gen_range(0.0..1.0);
+        if dir < self.p {
             let tid = self.next_tile_id();
             *self.at_ref(c.0, c.1) = tid;
             *self.at_ref(c.0, c.1 + 1) = tid;
@@ -476,11 +478,13 @@ struct Opts {
     input: Option<String>,
     #[clap(short('o'), long)]
     output: Option<String>,
+    #[clap(short('p'), long, default_value = "0.5")]
+    probability: f64,
 }
 
 #[get("/{steps}/{size}")]
 async fn index(web::Path((steps, size)): web::Path<(usize, usize)>) -> HttpResponse {
-    let mut x = Diamond::new();
+    let mut x = Diamond::new(0.5);
     x.generate(steps);
     let f = x
         .draw_image(size, &Colors::default(), ImageAction::Return)
@@ -513,7 +517,7 @@ fn main() {
             serde_json::from_str(&content)
                 .unwrap_or_else(|err| panic!("COULD NOT PARSE FILE {} WITH ERROR {}!", input, err))
         }
-        None => Diamond::new(),
+        None => Diamond::new(opts.probability),
     };
     if opts.save_all_steps {
         for i in 0..opts.steps {

@@ -1,7 +1,7 @@
 use actix_web::{dev::Body, get, web, App, HttpResponse, HttpServer};
 use clap::Clap;
 use image::imageops::{resize, FilterType};
-use image::{DynamicImage, Rgba, RgbaImage};
+use image::{DynamicImage, Rgba, RgbaImage, GenericImageView};
 use imageproc::drawing::{draw_filled_rect_mut, draw_hollow_rect_mut};
 use imageproc::rect::Rect;
 use progressing::{mapping::Bar as MappingBar, Baring};
@@ -56,7 +56,7 @@ impl Diamond {
             current_square: (0, 0),
             p: p,
         };
-        d.tile();
+        d.tile(None);
         d
     }
     fn to_offset(&self, i: usize, j: usize, size: usize) -> usize {
@@ -148,10 +148,26 @@ impl Diamond {
             tid
         }
     }
-    fn tile_square(&mut self, c: Coords) {
+    fn tile_square(&mut self, c: Coords, img: &Option<image::DynamicImage>) {
         let mut rng = rand::thread_rng();
-        let dir: f64 = rng.gen_range(0.0..1.0);
-        if dir < self.p {
+        let predicate: bool = match img {
+            Some(im) => {
+                let pix = im.get_pixel(c.1 as u32, c.0 as u32).0[0];
+                if pix < 128 {
+                    true
+                }else if pix >= 128 && pix <= 192 {
+                    let dir: u64 = rng.gen::<u64>() % 2;
+                    dir == 0
+                }else {
+                    false
+                }
+             },
+            None => {
+                let dir: f64 = rng.gen_range(0.0..1.0);
+                dir < self.p
+            }
+        };
+        if predicate {
             let tid = self.next_tile_id();
             *self.at_ref(c.0, c.1) = tid;
             *self.at_ref(c.0, c.1 + 1) = tid;
@@ -292,25 +308,36 @@ impl Diamond {
             }
         }
     }
-    fn tile(&mut self) {
+    fn tile(&mut self, embed: Option<String>) {
+        let im = if let Some(fname) = embed {
+            let img = image::open(&fname).expect(&format!("NO IMAGE {}!", &fname));
+            let img = img.grayscale().resize(self.size as u32, self.size as u32, FilterType::Nearest);
+            Some(img)
+        }else{
+            None
+        };
         while let Some(c) = self.find_square() {
-            self.tile_square(c)
+            self.tile_square(c, &im)
         }
     }
-    pub fn step(&mut self) {
+    pub fn step(&mut self, embed: Option<String>) {
         self.eliminate_stuck_tiles();
         self.extend();
         self.move_tiles();
-        self.tile();
+        self.tile(embed);
     }
-    pub fn generate(&mut self, n: usize) {
+    pub fn generate(&mut self, n: usize, embed: Option<String>) {
         let mut progress_bar = MappingBar::with_range(0, n + 1);
         progress_bar.set_len(32);
         progress_bar.set(2 as usize);
         for i in 0..n {
             progress_bar.set(i + 2);
             print!("\r{}", progress_bar);
-            self.step();
+            if i == n - 1 {
+                self.step(embed.clone());
+            }else{
+                self.step(None);
+            }
         }
         println!();
     }
@@ -480,12 +507,14 @@ struct Opts {
     output: Option<String>,
     #[clap(short('p'), long, default_value = "0.5")]
     probability: f64,
+    #[clap(short('e'), long)]
+    embed: Option<String>,
 }
 
 #[get("/{steps}/{size}")]
 async fn index(web::Path((steps, size)): web::Path<(usize, usize)>) -> HttpResponse {
     let mut x = Diamond::new(0.5);
-    x.generate(steps);
+    x.generate(steps, None);
     let f = x
         .draw_image(size, &Colors::default(), ImageAction::Return)
         .expect("IMAGE IS NOT HERE!");
@@ -531,11 +560,11 @@ fn main() {
                 ),
                 ImageAction::Save(format!("{}_{}.png", opts.filename, i + 1)),
             );
-            x.step();
+            x.step(None);
         }
     } else {
         println!("Generating...");
-        x.generate(opts.steps - 1);
+        x.generate(opts.steps - 1, opts.embed);
         println!("Rendering...");
         x.draw_image(
             opts.tile_size,

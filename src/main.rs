@@ -1,7 +1,7 @@
 use actix_web::{dev::Body, get, web, App, HttpResponse, HttpServer};
 use clap::Clap;
 use image::imageops::{resize, FilterType};
-use image::{DynamicImage, Rgba, RgbaImage, GenericImageView};
+use image::{DynamicImage, GenericImageView, Rgba, RgbaImage};
 use imageproc::drawing::{draw_filled_rect_mut, draw_hollow_rect_mut};
 use imageproc::rect::Rect;
 use progressing::{mapping::Bar as MappingBar, Baring};
@@ -54,7 +54,7 @@ impl Diamond {
             tile_id: 1,
             free_ids: VecDeque::new(),
             current_square: (0, 0),
-            p: p,
+            p,
         };
         d.tile(None);
         d
@@ -105,11 +105,11 @@ impl Diamond {
     fn extend(&mut self) {
         let new_size = self.size + 2;
         let mut new_data = vec![0; new_size * (2 + new_size / 2)];
-        for i in 0..self.size {
-            for j in self.span(i) {
+        (0..self.size).for_each(|i| {
+            self.span(i).for_each(|j| {
                 new_data[self.to_offset(i + 1, j + 1, new_size)] = self.at(i, j);
-            }
-        }
+            });
+        });
         self.data = new_data;
         self.size = new_size;
         self.tiles.par_iter_mut().for_each(|(_, tile)| {
@@ -117,27 +117,34 @@ impl Diamond {
         });
     }
     fn find_square(&mut self) -> Option<Coords> {
-        for i in self.current_square.0..self.size - 1 {
+        let res = (self.current_square.0..self.size - 1).find_map(|i| {
             let Range { start: b, end: e } = self.span(i);
-            for j in (if i == self.current_square.0 {
+            ((if i == self.current_square.0 {
                 self.current_square.1
             } else {
                 b
-            })..e - 1
-            {
-                if self.at(i, j) == 0
-                    && self.at(i + 1, j) == 0
-                    && self.at(i, j + 1) == 0
-                    && self.at(i + 1, j + 1) == 0
-                {
-                    self.current_square = (i, j);
-                    return Some((i, j));
-                }
+            })..e - 1)
+                .find_map(|j| {
+                    if self.at(i, j) == 0
+                        && self.at(i + 1, j) == 0
+                        && self.at(i, j + 1) == 0
+                        && self.at(i + 1, j + 1) == 0
+                    {
+                        self.current_square = (i, j);
+                        Some((i, j))
+                    } else {
+                        None
+                    }
+                })
+        });
+        match res {
+            Some(_) => res,
+            None => {
+                let Range { start: b, end: _ } = self.span(0);
+                self.current_square = (0, b + 1);
+                None
             }
         }
-        let Range { start: b, end: _ } = self.span(0);
-        self.current_square = (0, b + 1);
-        None
     }
     fn next_tile_id(&mut self) -> usize {
         if !self.free_ids.is_empty() {
@@ -155,13 +162,13 @@ impl Diamond {
                 let pix = im.get_pixel(c.1 as u32, c.0 as u32).0[0];
                 if pix < 128 {
                     true
-                }else if pix >= 128 && pix <= 192 {
+                } else if (128..=192).contains(&pix) {
                     let dir: u64 = rng.gen::<u64>() % 2;
                     dir == 0
-                }else {
+                } else {
                     false
                 }
-             },
+            }
             None => {
                 let dir: f64 = rng.gen_range(0.0..1.0);
                 dir < self.p
@@ -212,9 +219,9 @@ impl Diamond {
         }
     }
     fn eliminate_stuck_tiles(&mut self) {
-        for i in 0..self.size - 1 {
+        (0..self.size - 1).for_each(|i| {
             let Range { start: b, end: e } = self.span(i);
-            for j in b..e - 1 {
+            (b..e - 1).for_each(|j| {
                 if self.at(i, j) > 0 {
                     let tile_id = self.at(i, j) as usize;
                     if self.tiles[&tile_id].dir == Direction::B && j > b && self.at(i + 1, j) > 0 {
@@ -237,14 +244,15 @@ impl Diamond {
                         }
                     }
                 }
-            }
-        }
+            });
+        });
     }
     fn move_tiles(&mut self) {
-        let mut to_move: Vec<(usize, Coords, Direction)> = Vec::new();
-        for (id, tile) in self.tiles.iter_mut() {
-            to_move.push((*id, tile.pos, tile.dir));
-        }
+        let to_move: Vec<(usize, Coords, Direction)> = self
+            .tiles
+            .iter()
+            .map(|(id, tile)| (*id, tile.pos, tile.dir))
+            .collect();
         self.tiles.par_iter_mut().for_each(|(_, tile)| {
             let c = tile.pos;
             match tile.dir {
@@ -262,58 +270,60 @@ impl Diamond {
                 }
             }
         });
-        for m in to_move {
-            let (id, (i, j), o) = m;
+        to_move.iter().for_each(|m| {
+            let (id, (i, j), o) = &m;
             match o {
                 Direction::T => {
-                    if self.at(i, j) == id {
-                        *self.at_ref(i, j) = 0;
+                    if self.at(*i, *j) == *id {
+                        *self.at_ref(*i, *j) = 0;
                     }
-                    if self.at(i, j + 1) == id {
-                        *self.at_ref(i, j + 1) = 0;
+                    if self.at(*i, *j + 1) == *id {
+                        *self.at_ref(*i, j + 1) = 0;
                     }
-                    *self.at_ref(i - 1, j) = id;
-                    *self.at_ref(i - 1, j + 1) = id;
+                    *self.at_ref(i - 1, *j) = *id;
+                    *self.at_ref(i - 1, j + 1) = *id;
                 }
                 Direction::B => {
-                    if self.at(i, j) == id {
-                        *self.at_ref(i, j) = 0;
+                    if self.at(*i, *j) == *id {
+                        *self.at_ref(*i, *j) = 0;
                     }
-                    if self.at(i, j + 1) == id {
-                        *self.at_ref(i, j + 1) = 0;
+                    if self.at(*i, j + 1) == *id {
+                        *self.at_ref(*i, j + 1) = 0;
                     }
-                    *self.at_ref(i + 1, j) = id;
-                    *self.at_ref(i + 1, j + 1) = id;
+                    *self.at_ref(i + 1, *j) = *id;
+                    *self.at_ref(i + 1, j + 1) = *id;
                 }
                 Direction::L => {
-                    if self.at(i, j) == id {
-                        *self.at_ref(i, j) = 0;
+                    if self.at(*i, *j) == *id {
+                        *self.at_ref(*i, *j) = 0;
                     }
-                    if self.at(i + 1, j) == id {
-                        *self.at_ref(i + 1, j) = 0;
+                    if self.at(i + 1, *j) == *id {
+                        *self.at_ref(i + 1, *j) = 0;
                     }
-                    *self.at_ref(i, j - 1) = id;
-                    *self.at_ref(i + 1, j - 1) = id;
+                    *self.at_ref(*i, j - 1) = *id;
+                    *self.at_ref(i + 1, j - 1) = *id;
                 }
                 Direction::R => {
-                    if self.at(i, j) == id {
-                        *self.at_ref(i, j) = 0;
+                    if self.at(*i, *j) == *id {
+                        *self.at_ref(*i, *j) = 0;
                     }
-                    if self.at(i + 1, j) == id {
-                        *self.at_ref(i + 1, j) = 0;
+                    if self.at(i + 1, *j) == *id {
+                        *self.at_ref(i + 1, *j) = 0;
                     }
-                    *self.at_ref(i, j + 1) = id;
-                    *self.at_ref(i + 1, j + 1) = id;
+                    *self.at_ref(*i, j + 1) = *id;
+                    *self.at_ref(i + 1, j + 1) = *id;
                 }
             }
-        }
+        });
     }
     fn tile(&mut self, embed: Option<String>) {
         let im = if let Some(fname) = embed {
-            let img = image::open(&fname).expect(&format!("NO IMAGE {}!", &fname));
-            let img = img.grayscale().resize(self.size as u32, self.size as u32, FilterType::Nearest);
+            let img = image::open(&fname).unwrap_or_else(|_| panic!("NO IMAGE {}!", &fname));
+            let img =
+                img.grayscale()
+                    .resize(self.size as u32, self.size as u32, FilterType::Nearest);
             Some(img)
-        }else{
+        } else {
             None
         };
         while let Some(c) = self.find_square() {
@@ -329,22 +339,24 @@ impl Diamond {
     pub fn generate(&mut self, n: usize, embed: Option<String>) {
         let mut progress_bar = MappingBar::with_range(0, n + 1);
         progress_bar.set_len(32);
-        progress_bar.set(2 as usize);
-        for i in 0..n {
-            progress_bar.set(i + 2);
-            print!("\r{}", progress_bar);
-            if i == n - 1 {
-                self.step(embed.clone());
-            }else{
-                self.step(None);
-            }
-        }
+        progress_bar.set(2_usize);
+        (0..n)
+            .map(|i| {
+                progress_bar.set(i + 2);
+                print!("\r{}", progress_bar);
+                if i == n - 1 {
+                    self.step(embed.clone());
+                } else {
+                    self.step(None);
+                }
+            })
+            .for_each(drop);
         println!();
     }
     #[allow(dead_code)]
     pub fn print(&self) {
-        for i in 0..self.size {
-            for j in 0..self.size {
+        (0..self.size).for_each(|i| {
+            (0..self.size).for_each(|j| {
                 if self.at(i, j) > 0 {
                     print!(
                         " {} ",
@@ -366,19 +378,17 @@ impl Diamond {
                 } else {
                     print!("   ");
                 }
-            }
+            });
             println!();
-        }
+        });
         println!();
     }
     #[allow(dead_code)]
     pub fn print_debug(&self) {
-        for i in 0..self.size {
-            for j in 0..self.size {
-                print!("{:4} ", self.at(i, j))
-            }
+        (0..self.size).for_each(|i| {
+            (0..self.size).for_each(|j| print!("{:4} ", self.at(i, j)));
             println!();
-        }
+        });
         println!();
     }
     pub fn draw_image(&self, ts: usize, colors: &Colors, action: ImageAction) -> Option<Vec<u8>> {
@@ -397,7 +407,7 @@ impl Diamond {
             Rgba([128, 128, 128, 255]),
         );
         let mut progress_bar = MappingBar::with_range(0, self.tiles.len());
-        for (counter, tile) in self.tiles.values().enumerate() {
+        self.tiles.values().enumerate().for_each(|(counter, tile)| {
             let (i, j) = tile.pos;
             let (src, w, h) = match tile.dir {
                 Direction::T => (colors.top, 2, 1),
@@ -419,7 +429,7 @@ impl Diamond {
             );
             progress_bar.set(counter + 1);
             print!("\r{}", progress_bar);
-        }
+        });
         println!();
         if ts > 16 {
             im = resize(&im, im.width() * 2, im.height() * 2, FilterType::Nearest);

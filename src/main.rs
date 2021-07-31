@@ -218,6 +218,13 @@ impl Diamond {
             );
         }
     }
+    fn remove_two_tiles(&mut self, tid1: usize, tid2: usize, i: usize, j: usize) {
+        self.tiles.remove(&tid1);
+        self.tiles.remove(&tid2);
+        self.clear_square(i, j);
+        self.free_ids.push_back(tid1);
+        self.free_ids.push_back(tid2);
+    }
     fn eliminate_stuck_tiles(&mut self) {
         (0..self.size - 1).for_each(|i| {
             let Range { start: b, end: e } = self.span(i);
@@ -227,20 +234,12 @@ impl Diamond {
                     if self.tiles[&tile_id].dir == Direction::B && j > b && self.at(i + 1, j) > 0 {
                         let tile_id_2 = self.at(i + 1, j) as usize;
                         if self.tiles[&tile_id_2].dir == Direction::T {
-                            self.tiles.remove(&tile_id);
-                            self.tiles.remove(&tile_id_2);
-                            self.clear_square(i, j);
-                            self.free_ids.push_back(tile_id);
-                            self.free_ids.push_back(tile_id_2);
+                            self.remove_two_tiles(tile_id, tile_id_2, i, j)
                         }
                     } else if self.tiles[&tile_id].dir == Direction::R && self.at(i, j + 1) > 0 {
                         let tile_id_2 = self.at(i, j + 1) as usize;
                         if self.tiles[&tile_id_2].dir == Direction::L {
-                            self.tiles.remove(&tile_id);
-                            self.tiles.remove(&tile_id_2);
-                            self.clear_square(i, j);
-                            self.free_ids.push_back(tile_id);
-                            self.free_ids.push_back(tile_id_2);
+                            self.remove_two_tiles(tile_id, tile_id_2, i, j)
                         }
                     }
                 }

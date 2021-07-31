@@ -147,13 +147,11 @@ impl Diamond {
         }
     }
     fn next_tile_id(&mut self) -> usize {
-        if !self.free_ids.is_empty() {
-            self.free_ids.pop_front().unwrap()
-        } else {
+        self.free_ids.pop_front().unwrap_or({
             let tid = self.tile_id;
             self.tile_id += 1;
             tid
-        }
+        })
     }
     fn tile_square(&mut self, c: Coords, img: &Option<image::DynamicImage>) {
         let mut rng = rand::thread_rng();
@@ -247,10 +245,10 @@ impl Diamond {
         });
     }
     fn move_tiles(&mut self) {
-        let to_move: Vec<(usize, Coords, Direction)> = self
+        let to_move: Vec<(usize, Tile)> = self
             .tiles
             .iter()
-            .map(|(id, tile)| (*id, tile.pos, tile.dir))
+            .map(|(id, tile)| (*id, *tile))
             .collect();
         self.tiles.par_iter_mut().for_each(|(_, tile)| {
             let c = tile.pos;
@@ -269,8 +267,8 @@ impl Diamond {
                 }
             }
         });
-        to_move.iter().for_each(|m| {
-            let (id, (i, j), o) = &m;
+        to_move.iter().for_each(|(id, tile)| {
+            let Tile { pos: (i, j), dir: o} = tile;
             match o {
                 Direction::T => {
                     if self.at(*i, *j) == *id {

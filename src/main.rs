@@ -32,6 +32,8 @@ struct Tile {
 #[derive(Serialize, Deserialize)]
 struct Diamond {
     size: usize,
+    capacity: usize,
+    origin: Coords,
     data: Vec<usize>,
     tiles: HashMap<usize, Tile>,
     tile_id: usize,
@@ -46,35 +48,35 @@ enum ImageAction {
 }
 
 impl Diamond {
-    pub fn new(p: f64) -> Diamond {
-        let mut d = Diamond {
-            size: 2,
-            data: vec![0; 4],
+    pub fn new(p: f64, size: usize) -> Diamond {
+        Diamond {
+            size: 0,
+            capacity: size,
+            origin: (size / 2, size / 2),
+            data: vec![0; size * size],
             tiles: HashMap::new(),
             tile_id: 1,
             free_ids: VecDeque::new(),
             current_square: (0, 0),
             p,
-        };
-        d.tile(None);
-        d
+        }
     }
-    fn to_offset(&self, i: usize, j: usize, size: usize) -> usize {
-        let j = j - self.half_span(i, size);
-        if i < size / 2 {
-            i * (2 + i * 2) / 2 + j
+    fn to_offset(&self, i: usize, j: usize) -> usize {
+        let j = j - self.half_span(i, self.capacity);
+        let s = self.capacity / 2;
+        if i < s {
+            i * (1 + i) + j
         } else {
-            let s = size / 2;
-            let s2 = size - i;
-            s * (2 + s * 2) - s2 * (2 + s2 * 2) / 2 + j
+            let s2 = self.capacity - i;
+            s * 2 * (1 + s) - s2 * (1 + s2) + j
         }
     }
     fn at_ref(&mut self, m: usize, n: usize) -> &mut usize {
-        let l = self.to_offset(m, n, self.size);
+        let l = self.to_offset(m + self.origin.0, n + self.origin.1);
         &mut self.data[l]
     }
     fn at(&self, m: usize, n: usize) -> usize {
-        self.data[self.to_offset(m, n, self.size)]
+        self.data[self.to_offset(m + self.origin.0, n + self.origin.1)]
     }
     fn clear_square(&mut self, i: usize, j: usize) {
         *self.at_ref(i, j) = 0;
@@ -83,35 +85,31 @@ impl Diamond {
         *self.at_ref(i + 1, j + 1) = 0;
     }
     fn half_span(&self, i: usize, size: usize) -> usize {
-        if i < size / 2 {
-            size / 2 - 1 - i
+        let s = size / 2;
+        if i < s {
+            s - 1 - i
         } else {
-            size / 2 - 1 - (size - i - 1)
+            s - size + i
         }
     }
     fn span(&self, i: usize) -> Range<usize> {
-        if i < self.size / 2 {
+        let s = self.size / 2;
+        if i < s {
             Range {
-                start: self.size / 2 - 1 - i,
-                end: self.size - self.size / 2 + 1 + i,
+                start: s - 1 - i,
+                end: self.size - s + 1 + i,
             }
         } else {
             Range {
-                start: self.size / 2 - 1 - (self.size - i - 1),
-                end: self.size - self.size / 2 + 1 + (self.size - i - 1),
+                start: s - self.size + i,
+                end: 2 * self.size - s - i,
             }
         }
     }
     fn extend(&mut self) {
-        let new_size = self.size + 2;
-        let mut new_data = vec![0; new_size * (2 + new_size / 2)];
-        (0..self.size).for_each(|i| {
-            self.span(i).for_each(|j| {
-                new_data[self.to_offset(i + 1, j + 1, new_size)] = self.at(i, j);
-            });
-        });
-        self.data = new_data;
-        self.size = new_size;
+        self.size += 2;
+        self.origin.0 -= 1;
+        self.origin.1 -= 1;
         self.tiles.par_iter_mut().for_each(|(_, tile)| {
             tile.pos = (tile.pos.0 + 1, tile.pos.1 + 1);
         });
@@ -172,9 +170,9 @@ impl Diamond {
                 dir < self.p
             }
         };
+        let tid = self.next_tile_id();
+        *self.at_ref(c.0, c.1) = tid;
         if predicate {
-            let tid = self.next_tile_id();
-            *self.at_ref(c.0, c.1) = tid;
             *self.at_ref(c.0, c.1 + 1) = tid;
             self.tiles.insert(
                 tid,
@@ -194,8 +192,6 @@ impl Diamond {
                 },
             );
         } else {
-            let tid = self.next_tile_id();
-            *self.at_ref(c.0, c.1) = tid;
             *self.at_ref(c.0 + 1, c.1) = tid;
             self.tiles.insert(
                 tid,
@@ -224,6 +220,9 @@ impl Diamond {
         self.free_ids.push_back(tid2);
     }
     fn eliminate_stuck_tiles(&mut self) {
+        if self.size == 0 {
+            return;
+        }
         (0..self.size - 1).for_each(|i| {
             let Range { start: b, end: e } = self.span(i);
             (b..e - 1).for_each(|j| {
@@ -245,11 +244,8 @@ impl Diamond {
         });
     }
     fn move_tiles(&mut self) {
-        let to_move: Vec<(usize, Tile)> = self
-            .tiles
-            .iter()
-            .map(|(id, tile)| (*id, *tile))
-            .collect();
+        let to_move: Vec<(usize, Tile)> =
+            self.tiles.iter().map(|(id, tile)| (*id, *tile)).collect();
         self.tiles.par_iter_mut().for_each(|(_, tile)| {
             let c = tile.pos;
             match tile.dir {
@@ -268,7 +264,10 @@ impl Diamond {
             }
         });
         to_move.iter().for_each(|(id, tile)| {
-            let Tile { pos: (i, j), dir: o} = tile;
+            let Tile {
+                pos: (i, j),
+                dir: o,
+            } = tile;
             match o {
                 Direction::T => {
                     if self.at(*i, *j) == *id {
@@ -334,20 +333,20 @@ impl Diamond {
         self.tile(embed);
     }
     pub fn generate(&mut self, n: usize, embed: Option<String>) {
-        let mut progress_bar = MappingBar::with_range(0, n + 1);
+        let mut progress_bar = MappingBar::with_range(0, n);
         progress_bar.set_len(32);
-        progress_bar.set(2_usize);
-        (0..n)
-            .map(|i| {
-                progress_bar.set(i + 2);
+        progress_bar.set(0_usize);
+        (0..n).for_each(|i| {
+            progress_bar.set(i + 1);
+            if progress_bar.has_progressed_significantly() {
                 print!("\r{}", progress_bar);
-                if i == n - 1 {
-                    self.step(embed.clone());
-                } else {
-                    self.step(None);
-                }
-            })
-            .for_each(drop);
+            }
+            if i == n - 1 {
+                self.step(embed.clone());
+            } else {
+                self.step(None);
+            }
+        });
         println!();
     }
     #[allow(dead_code)]
@@ -425,7 +424,9 @@ impl Diamond {
                 src,
             );
             progress_bar.set(counter + 1);
-            print!("\r{}", progress_bar);
+            if progress_bar.has_progressed_significantly() {
+                print!("\r{}", progress_bar);
+            }
         });
         println!();
         if ts > 16 {
@@ -520,7 +521,7 @@ struct Opts {
 
 #[get("/{steps}/{size}")]
 async fn index(web::Path((steps, size)): web::Path<(usize, usize)>) -> HttpResponse {
-    let mut x = Diamond::new(0.5);
+    let mut x = Diamond::new(0.5, steps * 2);
     x.generate(steps, None);
     let f = x
         .draw_image(size, &Colors::default(), ImageAction::Return)
@@ -543,7 +544,7 @@ async fn amain() -> std::io::Result<()> {
 fn main() {
     let opts: Opts = Opts::parse();
     if opts.web {
-        amain().unwrap_or_else(|s| panic!(format!("SOMETHING WENT WRONG {}!", s)));
+        amain().unwrap_or_else(|s| panic!("SOMETHING WENT WRONG {}!", s));
         return;
     }
     let mut x = match opts.input {
@@ -553,10 +554,11 @@ fn main() {
             serde_json::from_str(&content)
                 .unwrap_or_else(|err| panic!("COULD NOT PARSE FILE {} WITH ERROR {}!", input, err))
         }
-        None => Diamond::new(opts.probability),
+        None => Diamond::new(opts.probability, opts.steps * 2),
     };
     if opts.save_all_steps {
         for i in 0..opts.steps {
+            x.step(None);
             x.draw_image(
                 opts.tile_size,
                 &Colors::new(
@@ -567,11 +569,10 @@ fn main() {
                 ),
                 ImageAction::Save(format!("{}_{}.png", opts.filename, i + 1)),
             );
-            x.step(None);
         }
     } else {
         println!("Generating...");
-        x.generate(opts.steps - 1, opts.embed);
+        x.generate(opts.steps, opts.embed);
         println!("Rendering...");
         x.draw_image(
             opts.tile_size,

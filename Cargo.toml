@@ -9,7 +9,7 @@ edition = "2018"
 [dependencies]
 rand = "*"
 rayon = "*"
-clap = "3.0.0-beta.2"
+clap = { version = "3.1.8", features = ["derive"] }
 image = "*"
 imageproc = "*"
 actix-web = { version = "3" }

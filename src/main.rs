@@ -1,5 +1,5 @@
 use actix_web::{dev::Body, get, web, App, HttpResponse, HttpServer};
-use clap::Clap;
+use clap::Parser;
 use image::imageops::{resize, FilterType};
 use image::{DynamicImage, GenericImageView, Rgba, RgbaImage};
 use imageproc::drawing::{draw_filled_rect_mut, draw_hollow_rect_mut};
@@ -12,6 +12,7 @@ use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::num::ParseIntError;
 use std::ops::Range;
+use std::io::Cursor;
 
 type Coords = (usize, usize);
 
@@ -440,7 +441,7 @@ impl Diamond {
             ImageAction::Return => {
                 let mut bytes: Vec<u8> = Vec::new();
                 match DynamicImage::ImageRgba8(im)
-                    .write_to(&mut bytes, image::ImageOutputFormat::Png)
+                    .write_to(&mut Cursor::new(&mut bytes), image::ImageOutputFormat::Png)
                 {
                     Ok(()) => Some(bytes),
                     Err(_) => None,
@@ -488,7 +489,7 @@ impl Colors {
     }
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 #[clap(version = "1.0", author = "Abbath")]
 struct Opts {
     #[clap(short('n'), long, default_value = "256")]

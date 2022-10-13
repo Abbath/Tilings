@@ -50,11 +50,13 @@ enum ImageAction {
 
 impl Diamond {
     pub fn new(p: f64, size: usize) -> Diamond {
+        let n = size / 2 - 1;
+        let corner = n * (n + 1) / 2;
         Diamond {
             size: 0,
             capacity: size,
             origin: (size / 2, size / 2),
-            data: vec![0; size * size],
+            data: vec![0; size * size - corner * 4],
             tiles: HashMap::new(),
             tile_id: 1,
             free_ids: VecDeque::new(),

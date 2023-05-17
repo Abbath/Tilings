@@ -1,5 +1,6 @@
 use actix_web::{dev::Body, get, web, App, HttpResponse, HttpServer};
 use clap::Parser;
+use clap::Parser;
 use image::imageops::{resize, FilterType};
 use image::{DynamicImage, GenericImageView, Rgba, RgbaImage};
 use imageproc::drawing::{draw_filled_rect_mut, draw_hollow_rect_mut};
@@ -230,14 +231,14 @@ impl Diamond {
             let Range { start: b, end: e } = self.span(i);
             (b..e - 1).for_each(|j| {
                 if self.at(i, j) > 0 {
-                    let tile_id = self.at(i, j) as usize;
+                    let tile_id = self.at(i, j);
                     if self.tiles[&tile_id].dir == Direction::B && j > b && self.at(i + 1, j) > 0 {
-                        let tile_id_2 = self.at(i + 1, j) as usize;
+                        let tile_id_2 = self.at(i + 1, j);
                         if self.tiles[&tile_id_2].dir == Direction::T {
                             self.remove_two_tiles(tile_id, tile_id_2, i, j)
                         }
                     } else if self.tiles[&tile_id].dir == Direction::R && self.at(i, j + 1) > 0 {
-                        let tile_id_2 = self.at(i, j + 1) as usize;
+                        let tile_id_2 = self.at(i, j + 1);
                         if self.tiles[&tile_id_2].dir == Direction::L {
                             self.remove_two_tiles(tile_id, tile_id_2, i, j)
                         }
@@ -359,7 +360,7 @@ impl Diamond {
                 if self.at(i, j) > 0 {
                     print!(
                         " {} ",
-                        match self.tiles[&(self.at(i, j) as usize)].dir {
+                        match self.tiles[&(self.at(i, j))].dir {
                             Direction::T => {
                                 "T"
                             }
@@ -492,33 +493,33 @@ impl Colors {
 }
 
 #[derive(Parser)]
-#[clap(version = "1.0", author = "Abbath")]
+#[command(version = "1.0", author = "Abbath")]
 struct Opts {
-    #[clap(short('n'), long, default_value = "256")]
+    #[arg(short('n'), long, default_value = "256")]
     steps: usize,
-    #[clap(short, long, default_value = "test.png")]
+    #[arg(short, long, default_value = "test.png")]
     filename: String,
-    #[clap(short('s'), long, default_value = "8", validator(|x| if x.parse::<usize>().unwrap_or(0) > 0 {Ok(())} else {Err("Must be >0")}))]
+    #[arg(short('s'), long, default_value = "8")]
     tile_size: usize,
-    #[clap(short, long, default_value = "ff0000ff", parse(try_from_str = parse_hex))]
+    #[arg(short, long, default_value = "ff0000ff", value_parser = parse_hex)]
     top_color: u32,
-    #[clap(short, long, default_value = "0000ffff", parse(try_from_str = parse_hex))]
+    #[arg(short, long, default_value = "0000ffff", value_parser = parse_hex)]
     bottom_color: u32,
-    #[clap(short, long, default_value = "ffff00ff", parse(try_from_str = parse_hex))]
+    #[arg(short, long, default_value = "ffff00ff", value_parser = parse_hex)]
     left_color: u32,
-    #[clap(short, long, default_value = "00ff00ff", parse(try_from_str = parse_hex))]
+    #[arg(short, long, default_value = "00ff00ff", value_parser = parse_hex)]
     right_color: u32,
-    #[clap(short('a'), long)]
+    #[arg(short('a'), long)]
     save_all_steps: bool,
-    #[clap(short('w'), long)]
+    #[arg(short('w'), long)]
     web: bool,
-    #[clap(short('i'), long)]
+    #[arg(short('i'), long)]
     input: Option<String>,
-    #[clap(short('o'), long)]
+    #[arg(short('o'), long)]
     output: Option<String>,
-    #[clap(short('p'), long, default_value = "0.5")]
+    #[arg(short('p'), long, default_value = "0.5")]
     probability: f64,
-    #[clap(short('e'), long)]
+    #[arg(short('e'), long)]
     embed: Option<String>,
 }
 

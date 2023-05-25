@@ -1,6 +1,6 @@
 [package]
 name = "tilings"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Abbath <pitongogi@gmail.com>"]
 edition = "2021"
 
@@ -11,8 +11,9 @@ rand = "*"
 rayon = "*"
 image = "*"
 imageproc = "*"
-actix-web = { version = "3" }
-serde = "*"
+actix-web = { version = "4" }
+actix_extract_multipart = "*"
+serde = { version = "*", features = ["derive"]}
 serde_json = "*"
 progressing = "*"
 clap = { version = "4.2.7", features = ["derive"] }

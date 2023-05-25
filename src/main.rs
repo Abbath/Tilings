@@ -1,5 +1,5 @@
-use actix_web::{dev::Body, get, web, App, HttpResponse, HttpServer};
-use clap::Parser;
+use actix_extract_multipart::*;
+use actix_web::{get, http::header, post, web, App, HttpResponse, HttpServer};
 use clap::Parser;
 use image::imageops::{resize, FilterType};
 use image::{DynamicImage, GenericImageView, Rgba, RgbaImage};
@@ -11,9 +11,9 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::collections::VecDeque;
+use std::io::Cursor;
 use std::num::ParseIntError;
 use std::ops::Range;
-use std::io::Cursor;
 
 type Coords = (usize, usize);
 
@@ -47,6 +47,12 @@ struct Diamond {
 enum ImageAction {
     Save(String),
     Return,
+}
+
+#[derive(Clone)]
+enum EmbeddableImage {
+    FileName(String),
+    FileBytes(Vec<u8>),
 }
 
 impl Diamond {
@@ -170,7 +176,7 @@ impl Diamond {
                 }
             }
             None => {
-                let dir: f64 = rng.gen_range(0.0..1.0);
+                let dir: f64 = rng.gen_range(0.0..=1.0);
                 dir < self.p
             }
         };
@@ -316,12 +322,20 @@ impl Diamond {
             }
         });
     }
-    fn tile(&mut self, embed: Option<String>) {
-        let im = if let Some(fname) = embed {
-            let img = image::open(&fname).unwrap_or_else(|_| panic!("NO IMAGE {}!", &fname));
-            let img =
-                img.grayscale()
-                    .resize(self.size as u32, self.size as u32, FilterType::Nearest);
+    fn tile(&mut self, embed: Option<EmbeddableImage>) {
+        let im = if let Some(ef) = embed {
+            let img = match ef {
+                EmbeddableImage::FileName(fname) => {
+                    image::open(&fname).unwrap_or_else(|_| panic!("NO IMAGE {}!", &fname))
+                }
+                EmbeddableImage::FileBytes(data) => image::load_from_memory(&data)
+                    .unwrap_or_else(|_| panic!("NO IMAGE IN REQUEST!")),
+            };
+            let img = img.grayscale().resize_exact(
+                self.size as u32,
+                self.size as u32,
+                FilterType::Nearest,
+            );
             Some(img)
         } else {
             None
@@ -330,13 +344,13 @@ impl Diamond {
             self.tile_square(c, &im)
         }
     }
-    pub fn step(&mut self, embed: Option<String>) {
+    pub fn step(&mut self, embed: Option<EmbeddableImage>) {
         self.eliminate_stuck_tiles();
         self.extend();
         self.move_tiles();
         self.tile(embed);
     }
-    pub fn generate(&mut self, n: usize, embed: Option<String>) {
+    pub fn generate(&mut self, n: usize, embed: Option<EmbeddableImage>) {
         let mut progress_bar = MappingBar::with_range(0, n);
         progress_bar.set_len(32);
         progress_bar.set(0_usize);
@@ -523,26 +537,81 @@ struct Opts {
     embed: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct Params {
+    fname: Option<File>,
+    steps: usize,
+    size: usize,
+}
+
+#[post("/")]
+async fn index_post(params: Multipart<Params>) -> HttpResponse {
+    // let params = web::Query::<Params>::from_query(req.query_string()).unwrap_or(web::Query::<Params>(Params{fname: Vec::new(), steps: 256, size: 4}));
+    let mut x = Diamond::new(0.5, params.steps * 2);
+    x.generate(
+        params.steps,
+        params
+            .fname
+            .as_ref()
+            .map(|f| EmbeddableImage::FileBytes(f.data().to_vec())),
+    );
+    let f = x
+        .draw_image(params.size, &Colors::default(), ImageAction::Return)
+        .expect("IMAGE IS NOT HERE!");
+    HttpResponse::Ok()
+        .append_header(header::ContentDisposition::attachment("image.png"))
+        .content_type("image/png")
+        .body(f)
+}
+
+#[get("/")]
+async fn index_get() -> HttpResponse {
+    let html = r#"<!DOCTYPE html>
+    <html>
+    <body>
+    
+    <h2>Input</h2>
+    
+    <form method="post" action="/" enctype="multipart/form-data">
+      <label for="fname">Image:</label><br>
+      <input type="file" id="fname" name="fname" accept="image/png, image/jpeg"><br>
+      <label for="lname">Steps:</label><br>
+      <input type="number" id="steps" name="steps" value="256"><br>
+      <label for="lname">Size:</label><br>
+      <input type="number" id="size" name="size" value="4"><br><br>
+      <input type="submit" value="Submit">
+    </form> 
+    
+    </body>
+    </html>"#;
+    HttpResponse::Ok()
+        .content_type("text/html; charset=utf-8")
+        .body(html)
+}
+
 #[get("/{steps}/{size}")]
-async fn index(web::Path((steps, size)): web::Path<(usize, usize)>) -> HttpResponse {
+async fn index(path: web::Path<(usize, usize)>) -> HttpResponse {
+    let (steps, size) = path.into_inner();
     let mut x = Diamond::new(0.5, steps * 2);
     x.generate(steps, None);
     let f = x
         .draw_image(size, &Colors::default(), ImageAction::Return)
         .expect("IMAGE IS NOT HERE!");
-    HttpResponse::Ok()
-        .content_type("image/png")
-        .body(Body::from_slice(&f))
+    HttpResponse::Ok().content_type("image/png").body(f)
 }
 
 #[actix_web::main]
 async fn amain() -> std::io::Result<()> {
     let port = 3000;
-
-    HttpServer::new(|| App::new().service(index))
-        .bind(("0.0.0.0", port))?
-        .run()
-        .await
+    HttpServer::new(|| {
+        App::new()
+            .service(index)
+            .service(index_get)
+            .service(index_post)
+    })
+    .bind(("0.0.0.0", port))?
+    .run()
+    .await
 }
 
 fn main() {
@@ -576,7 +645,7 @@ fn main() {
         }
     } else {
         println!("Generating...");
-        x.generate(opts.steps, opts.embed);
+        x.generate(opts.steps, opts.embed.map(EmbeddableImage::FileName));
         println!("Rendering...");
         x.draw_image(
             opts.tile_size,

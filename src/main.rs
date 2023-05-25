@@ -542,12 +542,12 @@ pub struct Params {
     fname: Option<File>,
     steps: usize,
     size: usize,
+    p: usize,
 }
 
 #[post("/")]
 async fn index_post(params: Multipart<Params>) -> HttpResponse {
-    // let params = web::Query::<Params>::from_query(req.query_string()).unwrap_or(web::Query::<Params>(Params{fname: Vec::new(), steps: 256, size: 4}));
-    let mut x = Diamond::new(0.5, params.steps * 2);
+    let mut x = Diamond::new(params.p as f64 / 100.0f64, params.steps * 2);
     x.generate(
         params.steps,
         params
@@ -570,7 +570,7 @@ async fn index_get() -> HttpResponse {
     <html>
     <body>
     
-    <h2>Input</h2>
+    <h2>Tilings</h2>
     
     <form method="post" action="/" enctype="multipart/form-data">
       <label for="fname">Image:</label><br>
@@ -578,7 +578,9 @@ async fn index_get() -> HttpResponse {
       <label for="lname">Steps:</label><br>
       <input type="number" id="steps" name="steps" value="256"><br>
       <label for="lname">Size:</label><br>
-      <input type="number" id="size" name="size" value="4"><br><br>
+      <input type="number" id="size" name="size" value="4"><br>
+      <label for="lname">Probability (%):</label><br>
+      <input type="number" id="p" name="p" value="50" min="0" max="100"><br><br>
       <input type="submit" value="Submit">
     </form> 
     

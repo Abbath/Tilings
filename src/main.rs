@@ -458,7 +458,7 @@ impl Diamond {
             ImageAction::Return => {
                 let mut bytes: Vec<u8> = Vec::new();
                 match DynamicImage::ImageRgba8(im)
-                    .write_to(&mut Cursor::new(&mut bytes), image::ImageOutputFormat::Png)
+                    .write_to(&mut Cursor::new(&mut bytes), image::ImageFormat::Png)
                 {
                     Ok(()) => Some(bytes),
                     Err(_) => None,
@@ -569,9 +569,9 @@ async fn index_get() -> HttpResponse {
     let html = r#"<!DOCTYPE html>
     <html>
     <body>
-    
+
     <h2>Tilings</h2>
-    
+
     <form method="post" action="/" enctype="multipart/form-data">
       <label for="fname">Image:</label><br>
       <input type="file" id="fname" name="fname" accept="image/png, image/jpeg"><br>
@@ -582,8 +582,8 @@ async fn index_get() -> HttpResponse {
       <label for="lname">Probability (%):</label><br>
       <input type="number" id="p" name="p" value="50" min="0" max="100"><br><br>
       <input type="submit" value="Submit">
-    </form> 
-    
+    </form>
+
     </body>
     </html>"#;
     HttpResponse::Ok()

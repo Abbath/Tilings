@@ -322,14 +322,15 @@ impl Diamond {
             }
         });
     }
-    fn tile(&mut self, embed: Option<EmbeddableImage>) {
+    fn tile(&mut self, embed: &Option<EmbeddableImage>) {
         let im = if let Some(ef) = embed {
             let img = match ef {
                 EmbeddableImage::FileName(fname) => {
-                    image::open(&fname).unwrap_or_else(|_| panic!("NO IMAGE {}!", &fname))
+                    image::open(fname).unwrap_or_else(|_| panic!("NO IMAGE {}!", &fname))
                 }
-                EmbeddableImage::FileBytes(data) => image::load_from_memory(&data)
-                    .unwrap_or_else(|_| panic!("NO IMAGE IN REQUEST!")),
+                EmbeddableImage::FileBytes(data) => {
+                    image::load_from_memory(data).unwrap_or_else(|_| panic!("NO IMAGE IN REQUEST!"))
+                }
             };
             let img = img.grayscale().resize_exact(
                 self.size as u32,
@@ -344,7 +345,7 @@ impl Diamond {
             self.tile_square(c, &im)
         }
     }
-    pub fn step(&mut self, embed: Option<EmbeddableImage>) {
+    pub fn step(&mut self, embed: &Option<EmbeddableImage>) {
         self.eliminate_stuck_tiles();
         self.extend();
         self.move_tiles();
@@ -360,9 +361,9 @@ impl Diamond {
                 print!("\r{}", progress_bar);
             }
             if i == n - 1 {
-                self.step(embed.clone());
+                self.step(&embed);
             } else {
-                self.step(None);
+                self.step(&None);
             }
         });
         println!();
@@ -633,7 +634,7 @@ fn main() {
     };
     if opts.save_all_steps {
         for i in 0..opts.steps {
-            x.step(None);
+            x.step(&None);
             x.draw_image(
                 opts.tile_size,
                 &Colors::new(

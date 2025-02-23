@@ -1,11 +1,11 @@
 use actix_extract_multipart::*;
-use actix_web::{get, http::header, post, web, App, HttpResponse, HttpServer};
+use actix_web::{App, HttpResponse, HttpServer, get, http::header, post, web};
 use clap::Parser;
-use image::imageops::{resize, FilterType};
+use image::imageops::{FilterType, resize};
 use image::{DynamicImage, GenericImageView, Rgba, RgbaImage};
 use imageproc::drawing::{draw_filled_rect_mut, draw_hollow_rect_mut};
 use imageproc::rect::Rect;
-use progressing::{mapping::Bar as MappingBar, Baring};
+use progressing::{Baring, mapping::Bar as MappingBar};
 use rand::Rng;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -96,11 +96,7 @@ impl Diamond {
     }
     fn half_span(&self, i: usize, size: usize) -> usize {
         let s = size / 2;
-        if i < s {
-            s - 1 - i
-        } else {
-            s - size + i
-        }
+        if i < s { s - 1 - i } else { s - size + i }
     }
     fn span(&self, i: usize) -> Range<usize> {
         let s = self.size / 2;
@@ -169,7 +165,7 @@ impl Diamond {
                 if pix < 128 {
                     true
                 } else if (128..=192).contains(&pix) {
-                    let dir: u64 = rng.gen::<u64>() % 2;
+                    let dir: u64 = rng.r#gen::<u64>() % 2;
                     dir == 0
                 } else {
                     false

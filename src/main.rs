@@ -494,9 +494,9 @@ impl Colors {
     }
     fn int_to_color(c: u32) -> Rgba<u8> {
         Rgba([
-            (c >> 24 & 0xff) as u8,
-            (c >> 16 & 0xff) as u8,
-            (c >> 8 & 0xff) as u8,
+            ((c >> 24) & 0xff) as u8,
+            ((c >> 16) & 0xff) as u8,
+            ((c >> 8) & 0xff) as u8,
             (c & 0xff) as u8,
         ])
     }
@@ -674,7 +674,7 @@ fn main() {
     }
     if let Some(output) = opts.output {
         let serialized = serde_json::to_string(&x).unwrap();
-        if output == "--" {
+        if output.is_empty() {
             println!("{}", serialized);
         } else {
             std::fs::write(&output, serialized)

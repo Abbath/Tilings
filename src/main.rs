@@ -346,8 +346,6 @@ impl Diamond {
     }
     pub fn generate(&mut self, n: usize, embed: Option<EmbeddableImage>) {
         let mut progress_bar = MappingBar::with_range(0, n);
-        progress_bar.set_len(32);
-        progress_bar.set(0_usize);
         (0..n).for_each(|i| {
             progress_bar.set(i + 1);
             if progress_bar.has_progressed_significantly() {
@@ -658,11 +656,18 @@ fn main() {
     };
     if opts.save_all_steps {
         for i in 0..opts.steps {
+            println!("Step {i}");
             x.step(&None);
+            println!("Saving image {i}");
             x.draw_image(
                 opts.tile_size,
                 &colors,
-                ImageAction::Save(format!("{}_{}.png", opts.filename, i + 1)),
+                ImageAction::Save(format!(
+                    "{}_{:0width$}.png",
+                    opts.filename,
+                    i + 1,
+                    width = opts.steps.ilog10() as usize + 1
+                )),
             );
         }
     } else {

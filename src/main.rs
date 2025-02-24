@@ -6,7 +6,7 @@ use image::{DynamicImage, GenericImageView, Rgba, RgbaImage};
 use imageproc::drawing::{draw_filled_rect_mut, draw_hollow_rect_mut};
 use imageproc::rect::Rect;
 use progressing::{Baring, mapping::Bar as MappingBar};
-use rand::Rng;
+use rand::{Rng, random};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -121,34 +121,31 @@ impl Diamond {
         });
     }
     fn find_square(&mut self) -> Option<Coords> {
-        let res = (self.current_square.0..self.size - 1).find_map(|i| {
-            let Range { start: b, end: e } = self.span(i);
-            ((if i == self.current_square.0 {
-                self.current_square.1
-            } else {
-                b
-            })..e - 1)
-                .find_map(|j| {
-                    if self.at(i, j) == 0
-                        && self.at(i + 1, j) == 0
-                        && self.at(i, j + 1) == 0
-                        && self.at(i + 1, j + 1) == 0
-                    {
-                        self.current_square = (i, j);
-                        Some((i, j))
-                    } else {
-                        None
-                    }
-                })
-        });
-        match res {
-            Some(_) => res,
-            None => {
-                let Range { start: b, end: _ } = self.span(0);
-                self.current_square = (0, b + 1);
+        (self.current_square.0..self.size - 1)
+            .find_map(|i| {
+                let Range { start: b, end: e } = self.span(i);
+                ((if i == self.current_square.0 {
+                    self.current_square.1
+                } else {
+                    b
+                })..e - 1)
+                    .find_map(|j| {
+                        if self.at(i, j) == 0
+                            && self.at(i + 1, j) == 0
+                            && self.at(i, j + 1) == 0
+                            && self.at(i + 1, j + 1) == 0
+                        {
+                            self.current_square = (i, j);
+                            Some((i, j))
+                        } else {
+                            None
+                        }
+                    })
+            })
+            .or_else(|| {
+                self.current_square = (0, self.span(0).start + 1);
                 None
-            }
-        }
+            })
     }
     fn next_tile_id(&mut self) -> usize {
         self.free_ids.pop_front().unwrap_or({
@@ -408,7 +405,6 @@ impl Diamond {
             (self.size * tile_size) as u32,
             (self.size * tile_size) as u32,
         );
-        let black = Rgba([0, 0, 0, 255]);
         draw_filled_rect_mut(
             &mut im,
             Rect::at(0, 0).of_size(
@@ -430,7 +426,7 @@ impl Diamond {
                 &mut im,
                 Rect::at((j * tile_size) as i32, (i * tile_size) as i32)
                     .of_size((w * tile_size) as u32, (h * tile_size) as u32),
-                black,
+                colors.grid,
             );
             draw_filled_rect_mut(
                 &mut im,
@@ -474,15 +470,17 @@ struct Colors {
     bottom: Rgba<u8>,
     left: Rgba<u8>,
     right: Rgba<u8>,
+    grid: Rgba<u8>,
 }
 
 impl Colors {
-    pub fn new(t: u32, b: u32, l: u32, r: u32) -> Colors {
+    pub fn new(t: u32, b: u32, l: u32, r: u32, g: u32) -> Colors {
         Colors {
             top: Colors::int_to_color(t),
             bottom: Colors::int_to_color(b),
             left: Colors::int_to_color(l),
             right: Colors::int_to_color(r),
+            grid: Colors::int_to_color(g),
         }
     }
     pub fn default() -> Colors {
@@ -491,6 +489,7 @@ impl Colors {
             bottom: Rgba([0, 0, 255, 255]),
             left: Rgba([255, 255, 0, 255]),
             right: Rgba([0, 255, 0, 255]),
+            grid: Rgba([0, 0, 0, 255]),
         }
     }
     fn int_to_color(c: u32) -> Rgba<u8> {
@@ -520,6 +519,10 @@ struct Opts {
     left_color: u32,
     #[arg(short, long, default_value = "00ff00ff", value_parser = parse_hex)]
     right_color: u32,
+    #[arg(short, long, default_value = "000000ff", value_parser = parse_hex)]
+    grid_color: u32,
+    #[arg(short('c'), long)]
+    random_colors: bool,
     #[arg(short('a'), long)]
     save_all_steps: bool,
     #[arg(short('w'), long)]
@@ -613,6 +616,14 @@ async fn amain() -> std::io::Result<()> {
     .await
 }
 
+fn random_color() -> u32 {
+    let r: u8 = random();
+    let g: u8 = random();
+    let b: u8 = random();
+    let a: u8 = 255;
+    ((r as u32) << 24) | ((g as u32) << 16) | ((b as u32) << 8) | a as u32
+}
+
 fn main() {
     let opts: Opts = Opts::parse();
     if opts.web {
@@ -628,17 +639,29 @@ fn main() {
         }
         None => Diamond::new(opts.probability, opts.steps * 2),
     };
+    let colors: Colors = if opts.random_colors {
+        Colors::new(
+            random_color(),
+            random_color(),
+            random_color(),
+            random_color(),
+            random_color(),
+        )
+    } else {
+        Colors::new(
+            opts.top_color,
+            opts.bottom_color,
+            opts.left_color,
+            opts.right_color,
+            opts.grid_color,
+        )
+    };
     if opts.save_all_steps {
         for i in 0..opts.steps {
             x.step(&None);
             x.draw_image(
                 opts.tile_size,
-                &Colors::new(
-                    opts.top_color,
-                    opts.bottom_color,
-                    opts.left_color,
-                    opts.right_color,
-                ),
+                &colors,
                 ImageAction::Save(format!("{}_{}.png", opts.filename, i + 1)),
             );
         }
@@ -646,16 +669,7 @@ fn main() {
         println!("Generating...");
         x.generate(opts.steps, opts.embed.map(EmbeddableImage::FileName));
         println!("Rendering...");
-        x.draw_image(
-            opts.tile_size,
-            &Colors::new(
-                opts.top_color,
-                opts.bottom_color,
-                opts.left_color,
-                opts.right_color,
-            ),
-            ImageAction::Save(opts.filename),
-        );
+        x.draw_image(opts.tile_size, &colors, ImageAction::Save(opts.filename));
         println!("Done.");
     }
     if let Some(output) = opts.output {

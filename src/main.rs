@@ -349,7 +349,7 @@ impl Diamond {
         (0..n).for_each(|i| {
             progress_bar.set(i + 1);
             if progress_bar.has_progressed_significantly() {
-                print!("\r{}", progress_bar);
+                print!("\r{progress_bar}");
             }
             if i == n - 1 {
                 self.step(&embed);
@@ -434,7 +434,7 @@ impl Diamond {
             );
             progress_bar.set(counter + 1);
             if progress_bar.has_progressed_significantly() {
-                print!("\r{}", progress_bar);
+                print!("\r{progress_bar}");
             }
         });
         println!();
@@ -625,15 +625,15 @@ fn random_color() -> u32 {
 fn main() {
     let opts: Opts = Opts::parse();
     if opts.web {
-        amain().unwrap_or_else(|s| panic!("SOMETHING WENT WRONG {}!", s));
+        amain().unwrap_or_else(|s| panic!("SOMETHING WENT WRONG {s}!"));
         return;
     }
     let mut x = match opts.input {
         Some(input) => {
             let content = std::fs::read_to_string(&input)
-                .unwrap_or_else(|err| panic!("COULD NOT LOAD FILE {} WITH ERROR {}!", input, err));
+                .unwrap_or_else(|err| panic!("COULD NOT LOAD FILE {input} WITH ERROR {err}!"));
             serde_json::from_str(&content)
-                .unwrap_or_else(|err| panic!("COULD NOT PARSE FILE {} WITH ERROR {}!", input, err))
+                .unwrap_or_else(|err| panic!("COULD NOT PARSE FILE {input} WITH ERROR {err}!"))
         }
         None => Diamond::new(opts.probability, opts.steps * 2),
     };
@@ -680,10 +680,10 @@ fn main() {
     if let Some(output) = opts.output {
         let serialized = serde_json::to_string(&x).unwrap();
         if output.is_empty() {
-            println!("{}", serialized);
+            println!("{serialized}");
         } else {
             std::fs::write(&output, serialized)
-                .unwrap_or_else(|err| panic!("COULD NOT SAVE FILE {} {}!", output, err));
+                .unwrap_or_else(|err| panic!("COULD NOT SAVE FILE {output} {err}!"));
         }
     }
 }

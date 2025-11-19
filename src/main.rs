@@ -96,7 +96,7 @@ impl Diamond {
     }
     fn half_span(&self, i: usize, size: usize) -> usize {
         let s = size / 2;
-        if i < s { s - 1 - i } else { s - size + i }
+        if i < s { s - 1 - i } else { s + i - size }
     }
     fn span(&self, i: usize) -> Range<usize> {
         let s = self.size / 2;
@@ -107,7 +107,7 @@ impl Diamond {
             }
         } else {
             Range {
-                start: s - self.size + i,
+                start: s + i - self.size,
                 end: 2 * self.size - s - i,
             }
         }

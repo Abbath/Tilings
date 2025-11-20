@@ -678,7 +678,7 @@ fn main() {
         println!("Done.");
     }
     if let Some(output) = opts.output {
-        let serialized = serde_json::to_string(&x).unwrap();
+        let serialized = serde_json::to_string(&x).unwrap_or("{}".to_string());
         if output.is_empty() {
             println!("{serialized}");
         } else {

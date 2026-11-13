@@ -11,12 +11,12 @@ rand = "*"
 rayon = "*"
 image = "*"
 imageproc = "*"
-actix-web = { version = "4" }
+actix-web = { version = "*" }
 actix_extract_multipart = "*"
 serde = { version = "*", features = ["derive"]}
 serde_json = "*"
 progressing = "*"
-clap = { version = "4.2.7", features = ["derive"] }
+clap = { version = "*", features = ["derive"] }
 
 [lints.clippy]
 unwrap_used = "deny"

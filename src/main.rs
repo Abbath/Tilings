@@ -319,7 +319,7 @@ impl Diamond {
         let im = if let Some(ef) = embed {
             let img = match ef {
                 EmbeddableImage::FileName(fname) => {
-                    image::open(fname).unwrap_or_else(|_| panic!("NO IMAGE {}!", &fname))
+                    image::open(fname).unwrap_or_else(|_| panic!("NO IMAGE {}!", fname))
                 }
                 EmbeddableImage::FileBytes(data) => {
                     image::load_from_memory(data).unwrap_or_else(|_| panic!("NO IMAGE IN REQUEST!"))
